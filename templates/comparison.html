@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Comparison{% endblock %}
+{% block page_title %}Nationality Comparison{% endblock %}
+
+{% block content %}
+<div class="filter-bar card">
+  <label>From Period:</label>
+  <select id="periodFrom" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="periodTo" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-primary" onclick="loadComparison()">Apply</button>
+  <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+</div>
+
+<div class="card chart-card chart-card--wide" style="margin-bottom:1.5rem;">
+  <div class="card-header">Total Expenditure by Nationality (Rs)</div>
+  <div class="chart-container">
+    <canvas id="comparisonBar"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Detailed Comparison</div>
+  <div class="table-responsive">
+    <table id="compTable" class="data-table">
+      <thead>
+        <tr>
+          <th>Nationality</th>
+          <th>Total Employees</th>
+          <th>Total Expenditure (Rs)</th>
+          <th>Per Head Avg (Rs)</th>
+          <th>Per Day Avg (Rs)</th>
+        </tr>
+      </thead>
+      <tbody id="compTableBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let compChart = null;
+let dt = null;
+
+const NAT_COLORS = ['#3a86ff', '#06d6a0', '#ffd166', '#ef233c'];
+
+function resetFilters() {
+  document.getElementById('periodFrom').value = '';
+  document.getElementById('periodTo').value = '';
+  loadComparison();
+}
+
+function buildQuery() {
+  const from = document.getElementById('periodFrom').value;
+  const to = document.getElementById('periodTo').value;
+  const parts = [];
+  if (from) parts.push('from=' + encodeURIComponent(from));
+  if (to) parts.push('to=' + encodeURIComponent(to));
+  return parts.join('&');
+}
+
+async function loadComparison() {
+  const res = await fetch('/api/comparison?' + buildQuery());
+  const rows = await res.json();
+
+  // Chart
+  if (compChart) compChart.destroy();
+  const ctx = document.getElementById('comparisonBar').getContext('2d');
+  compChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.nationality),
+      datasets: [{
+        label: 'Total Expenditure (Rs)',
+        data: rows.map(r => r.total_expenditure),
+        backgroundColor: NAT_COLORS,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` Rs ${ctx.raw.toLocaleString('en-IN')}` } }
+      },
+      scales: {
+        x: { ticks: { color: '#8899aa' }, grid: { color: '#1e3a5f55' } },
+        y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-IN') }, grid: { color: '#1e3a5f55' } }
+      }
+    }
+  });
+
+  // Table
+  if (dt) { dt.destroy(); dt = null; }
+  const tbody = document.getElementById('compTableBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="nat-badge nat-${r.nationality.toLowerCase()}">${r.nationality}</span></td>
+      <td class="num-cell">${r.total_employees}</td>
+      <td class="num-cell">${r.total_expenditure_fmt}</td>
+      <td class="num-cell">${r.per_head_avg_fmt}</td>
+      <td class="num-cell">${r.per_day_avg_fmt}</td>
+    </tr>
+  `).join('');
+
+  dt = $('#compTable').DataTable({
+    order: [],
+    paging: false,
+    searching: false,
+    info: false,
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadComparison);
+</script>
+{% endblock %}
