@@ -63,7 +63,7 @@ def load_workbook_data() -> dict:
                         df["nationality"] = sheet
                         nationality_data[sheet] = df
                     except Exception:
-                        logger.error("Error parsing sheet %s", sheet)
+                        logger.error("Error parsing nationality sheet data")
                         nationality_data[sheet] = pd.DataFrame()
 
             employees_df = pd.DataFrame()
