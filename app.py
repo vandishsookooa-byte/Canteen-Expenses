@@ -24,7 +24,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = "canteen-expenses-secret-2024"
+import os as _os
+app.secret_key = _os.environ.get("SECRET_KEY", _os.urandom(32))
 
 
 # ─── Helper ────────────────────────────────────────────────────────────────────
@@ -118,7 +119,7 @@ def api_kpi():
         return jsonify(get_kpi_data(period_from=period_from, period_to=period_to))
     except Exception as exc:
         logger.error("api_kpi error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 @app.route("/api/charts/nationality")
@@ -141,7 +142,7 @@ def api_chart_nationality():
         })
     except Exception as exc:
         logger.error("api_chart_nationality error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 @app.route("/api/charts/expenditure")
@@ -164,7 +165,7 @@ def api_chart_expenditure():
         })
     except Exception as exc:
         logger.error("api_chart_expenditure error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 @app.route("/api/charts/trend")
@@ -174,7 +175,7 @@ def api_chart_trend():
         return jsonify(get_trend_data(nationality=nationality, period_from=period_from, period_to=period_to))
     except Exception as exc:
         logger.error("api_chart_trend error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 @app.route("/api/employees")
@@ -200,7 +201,7 @@ def api_employees():
         return jsonify(rows)
     except Exception as exc:
         logger.error("api_employees error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 @app.route("/api/comparison")
@@ -210,7 +211,7 @@ def api_comparison():
         return jsonify(get_comparison_data(period_from=period_from, period_to=period_to))
     except Exception as exc:
         logger.error("api_comparison error: %s", exc)
-        return jsonify({"error": str(exc)})
+        return jsonify({"error": "An internal error occurred"})
 
 
 # ─── Report Downloads ──────────────────────────────────────────────────────────
@@ -224,7 +225,7 @@ def download_perhead():
         return _download_response(df, "perhead_consumption", fmt)
     except Exception as exc:
         logger.error("download_perhead error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route("/reports/download/detailed")
@@ -236,7 +237,7 @@ def download_detailed():
         return _download_response(df, "detailed_expenditure", fmt)
     except Exception as exc:
         logger.error("download_detailed error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route("/reports/download/summary")
@@ -248,7 +249,7 @@ def download_summary():
         return _download_response(df, "summary_report", fmt)
     except Exception as exc:
         logger.error("download_summary error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route("/reports/download/monthly")
@@ -260,7 +261,7 @@ def download_monthly():
         return _download_response(df, "monthly_fortnight_report", fmt)
     except Exception as exc:
         logger.error("download_monthly error: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 if __name__ == "__main__":

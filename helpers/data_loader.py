@@ -2,8 +2,8 @@
 import os
 import logging
 import math
+import threading
 from datetime import datetime, date
-from functools import lru_cache
 
 import pandas as pd
 
@@ -15,6 +15,7 @@ EMPLOYEE_COLUMNS = ["PERIOD", "BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
 
 _cache: dict = {}
 _cache_path: str = ""
+_cache_lock = threading.Lock()
 
 
 def _get_excel_path() -> str:
@@ -25,72 +26,72 @@ def load_workbook_data() -> dict:
     """Load and cache all sheets from the Excel workbook."""
     global _cache, _cache_path
     path = _get_excel_path()
-    if _cache and _cache_path == path:
+    with _cache_lock:
+        if _cache and _cache_path == path:
+            return _cache
+
+        _cache_path = path
+        if not os.path.exists(path):
+            logger.warning("Excel file not found")
+            _cache = {"nationality": {}, "employees": pd.DataFrame()}
+            return _cache
+
+        try:
+            xl = pd.ExcelFile(path, engine="openpyxl")
+            sheets = xl.sheet_names
+
+            nationality_data: dict = {}
+            for sheet in NATIONALITY_SHEETS:
+                if sheet in sheets:
+                    try:
+                        df = xl.parse(sheet)
+                        df.columns = [str(c).strip().upper() for c in df.columns]
+                        for col in ["PERIOD", "TOTAL"]:
+                            if col not in df.columns:
+                                df[col] = None
+                        if "ITEMS" not in df.columns:
+                            df["ITEMS"] = ""
+                        if "QTY" not in df.columns:
+                            df["QTY"] = 0
+                        if "UNIT" not in df.columns:
+                            df["UNIT"] = ""
+                        if "UNIT PRICE" not in df.columns:
+                            df["UNIT PRICE"] = 0
+                        df["PERIOD"] = df["PERIOD"].astype(str).str.strip()
+                        df = df[df["PERIOD"].notna() & (df["PERIOD"] != "") & (df["PERIOD"] != "nan")]
+                        df["TOTAL"] = pd.to_numeric(df["TOTAL"], errors="coerce").fillna(0)
+                        df["nationality"] = sheet
+                        nationality_data[sheet] = df
+                    except Exception:
+                        logger.error("Error parsing sheet %s", sheet)
+                        nationality_data[sheet] = pd.DataFrame()
+
+            employees_df = pd.DataFrame()
+            for name in sheets:
+                if name.upper() == "EMPLOYEES":
+                    try:
+                        employees_df = xl.parse(name)
+                        employees_df.columns = [str(c).strip().upper() for c in employees_df.columns]
+                        employees_df["PERIOD"] = employees_df["PERIOD"].astype(str).str.strip()
+                        employees_df = employees_df[
+                            employees_df["PERIOD"].notna()
+                            & (employees_df["PERIOD"] != "")
+                            & (employees_df["PERIOD"] != "nan")
+                        ]
+                        for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
+                            if col in employees_df.columns:
+                                employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
+                            else:
+                                employees_df[col] = 0
+                    except Exception:
+                        logger.error("Error parsing EMPLOYEES sheet")
+
+            _cache = {"nationality": nationality_data, "employees": employees_df}
+        except Exception:
+            logger.error("Failed to load workbook")
+            _cache = {"nationality": {}, "employees": pd.DataFrame()}
+
         return _cache
-
-    _cache_path = path
-    if not os.path.exists(path):
-        logger.warning("Excel file not found: %s", path)
-        _cache = {"nationality": {}, "employees": pd.DataFrame()}
-        return _cache
-
-    try:
-        xl = pd.ExcelFile(path, engine="openpyxl")
-        sheets = xl.sheet_names
-
-        nationality_data: dict = {}
-        for sheet in NATIONALITY_SHEETS:
-            if sheet in sheets:
-                try:
-                    df = xl.parse(sheet)
-                    df.columns = [str(c).strip().upper() for c in df.columns]
-                    # Ensure required columns exist
-                    for col in ["PERIOD", "TOTAL"]:
-                        if col not in df.columns:
-                            df[col] = None
-                    if "ITEMS" not in df.columns:
-                        df["ITEMS"] = ""
-                    if "QTY" not in df.columns:
-                        df["QTY"] = 0
-                    if "UNIT" not in df.columns:
-                        df["UNIT"] = ""
-                    if "UNIT PRICE" not in df.columns:
-                        df["UNIT PRICE"] = 0
-                    df["PERIOD"] = df["PERIOD"].astype(str).str.strip()
-                    df = df[df["PERIOD"].notna() & (df["PERIOD"] != "") & (df["PERIOD"] != "nan")]
-                    df["TOTAL"] = pd.to_numeric(df["TOTAL"], errors="coerce").fillna(0)
-                    df["nationality"] = sheet
-                    nationality_data[sheet] = df
-                except Exception as exc:
-                    logger.error("Error parsing sheet %s: %s", sheet, exc)
-                    nationality_data[sheet] = pd.DataFrame()
-
-        employees_df = pd.DataFrame()
-        for name in sheets:
-            if name.upper() == "EMPLOYEES":
-                try:
-                    employees_df = xl.parse(name)
-                    employees_df.columns = [str(c).strip().upper() for c in employees_df.columns]
-                    employees_df["PERIOD"] = employees_df["PERIOD"].astype(str).str.strip()
-                    employees_df = employees_df[
-                        employees_df["PERIOD"].notna()
-                        & (employees_df["PERIOD"] != "")
-                        & (employees_df["PERIOD"] != "nan")
-                    ]
-                    for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
-                        if col in employees_df.columns:
-                            employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
-                        else:
-                            employees_df[col] = 0
-                except Exception as exc:
-                    logger.error("Error parsing EMPLOYEES sheet: %s", exc)
-
-        _cache = {"nationality": nationality_data, "employees": employees_df}
-    except Exception as exc:
-        logger.error("Failed to load workbook: %s", exc)
-        _cache = {"nationality": {}, "employees": pd.DataFrame()}
-
-    return _cache
 
 
 def get_nationality_sheets() -> list:
