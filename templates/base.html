@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Canteen Expenses{% endblock %} | Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">🍽️</span>
+      <span class="brand-text">Canteen<br><small>Expenses</small></span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <span class="nav-icon">📊</span> Dashboard
+      </a>
+      <a href="{{ url_for('employees') }}" class="nav-link {% if request.endpoint == 'employees' %}active{% endif %}">
+        <span class="nav-icon">👥</span> Employees
+      </a>
+      <a href="{{ url_for('trends') }}" class="nav-link {% if request.endpoint == 'trends' %}active{% endif %}">
+        <span class="nav-icon">📈</span> Trend Analysis
+      </a>
+      <a href="{{ url_for('comparison') }}" class="nav-link {% if request.endpoint == 'comparison' %}active{% endif %}">
+        <span class="nav-icon">⚖️</span> Comparison
+      </a>
+      <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+        <span class="nav-icon">📋</span> Reports
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <small>Canteen Analytics v1.0</small>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="main-wrapper">
+    <header class="top-header">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')" aria-label="Toggle sidebar">
+        ☰
+      </button>
+      <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+      <div class="header-meta">
+        <span class="header-badge">Live Data</span>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="content-area">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="filter-bar card">
+  <label>From Period:</label>
+  <select id="periodFrom" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="periodTo" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>Nationality:</label>
+  <select id="natFilter" class="form-select">
+    <option value="">All Nationalities</option>
+    {% for n in nationalities %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+</div>
+
+<div class="reports-grid">
+  <!-- Per-Head Consumption -->
+  <div class="card report-card">
+    <div class="report-icon">👤</div>
+    <div class="card-header">Per-Head Consumption</div>
+    <p class="report-desc">Expenditure per employee per period, broken down by nationality.</p>
+    <div class="report-actions">
+      <button class="btn btn-download btn-csv" onclick="download('perhead','csv')">
+        ⬇ Download CSV
+      </button>
+      <button class="btn btn-download btn-excel" onclick="download('perhead','excel')">
+        ⬇ Download Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Detailed Expenditure -->
+  <div class="card report-card">
+    <div class="report-icon">📝</div>
+    <div class="card-header">Detailed Expenditure</div>
+    <p class="report-desc">Full item-level breakdown with quantities, unit prices and totals.</p>
+    <div class="report-actions">
+      <button class="btn btn-download btn-csv" onclick="download('detailed','csv')">
+        ⬇ Download CSV
+      </button>
+      <button class="btn btn-download btn-excel" onclick="download('detailed','excel')">
+        ⬇ Download Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card report-card">
+    <div class="report-icon">📊</div>
+    <div class="card-header">Summary Report</div>
+    <p class="report-desc">Consolidated summary of expenditure by period and nationality.</p>
+    <div class="report-actions">
+      <button class="btn btn-download btn-csv" onclick="download('summary','csv')">
+        ⬇ Download CSV
+      </button>
+      <button class="btn btn-download btn-excel" onclick="download('summary','excel')">
+        ⬇ Download Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Monthly / Fortnight -->
+  <div class="card report-card">
+    <div class="report-icon">📅</div>
+    <div class="card-header">Monthly / Fortnight Report</div>
+    <p class="report-desc">Expenditure aggregated by month and fortnight across all nationalities.</p>
+    <div class="report-actions">
+      <button class="btn btn-download btn-csv" onclick="download('monthly','csv')">
+        ⬇ Download CSV
+      </button>
+      <button class="btn btn-download btn-excel" onclick="download('monthly','excel')">
+        ⬇ Download Excel
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function resetFilters() {
+  document.getElementById('periodFrom').value = '';
+  document.getElementById('periodTo').value = '';
+  document.getElementById('natFilter').value = '';
+}
+
+function buildQuery(fmt) {
+  const from = document.getElementById('periodFrom').value;
+  const to = document.getElementById('periodTo').value;
+  const nat = document.getElementById('natFilter').value;
+  const parts = [`format=${fmt}`];
+  if (from) parts.push('from=' + encodeURIComponent(from));
+  if (to) parts.push('to=' + encodeURIComponent(to));
+  if (nat) parts.push('nationality=' + encodeURIComponent(nat));
+  return parts.join('&');
+}
+
+function download(report, fmt) {
+  window.location.href = `/reports/download/${report}?` + buildQuery(fmt);
+}
+</script>
+{% endblock %}
