@@ -628,7 +628,7 @@
       }
 
       // Top items list
-      if (d.top_items?.length) {
+      if (d.top_items?.length > 0) {
         const max = d.top_items[0].TOTAL;
         const ul = document.getElementById('topItemsList');
         ul.innerHTML = d.top_items.map((it, i) => `
@@ -642,12 +642,12 @@
 
       // Employees
       if (d.employees?.length) {
-        const cols = ['BANGLADESHI','INDIAN','MALAGASY','SRILANKAN'];
+        const nationalityColumns = ['BANGLADESHI','INDIAN','MALAGASY','SRILANKAN'];
         document.getElementById('empBody').innerHTML = d.employees.map(row => {
-          const tot = cols.reduce((s, c) => s + (row[c] || 0), 0);
+          const tot = nationalityColumns.reduce((s, c) => s + (row[c] || 0), 0);
           return `<tr>
             <td>${row.PERIOD ?? '—'}</td>
-            ${cols.map(c => `<td class="num">${fmtInt(row[c] ?? 0)}</td>`).join('')}
+            ${nationalityColumns.map(c => `<td class="num">${fmtInt(row[c] ?? 0)}</td>`).join('')}
             <td class="num total-cell">${fmtInt(tot)}</td>
           </tr>`;
         }).join('');

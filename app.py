@@ -162,9 +162,8 @@ def api_report():
     display_cols = [c for c in ["PERIOD", "NATIONALITY", "ITEMS", "QTY", "UNIT", "UNIT PRICE", "TOTAL"] if c in combined.columns]
     result = combined[display_cols].fillna("").to_dict(orient="records")
 
-    # Periods and nationalities for filter dropdowns
-    sheets2, _ = load_excel()
-    full = get_combined(sheets2)
+    # Periods and nationalities for filter dropdowns (reuse already-loaded data)
+    full = get_combined(sheets)
     periods = sorted(full["PERIOD"].dropna().unique().tolist()) if "PERIOD" in full.columns else []
     nats = NATIONALITIES
 
@@ -178,4 +177,4 @@ def api_report():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
