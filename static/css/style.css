@@ -1,0 +1,434 @@
+/* ================================================================
+   Canteen Expenses – Global Stylesheet
+   Dark navy theme matching the reference screenshot
+   ================================================================ */
+
+:root {
+  --bg-dark:        #0a1628;
+  --bg-sidebar:     #0d1f3c;
+  --bg-card:        #112240;
+  --bg-table-head:  #1a3560;
+  --bg-table-row:   #0d1f3c;
+  --bg-table-alt:   #0f2447;
+  --accent:         #3d8ef8;
+  --accent-hover:   #5aa3ff;
+  --text-primary:   #e0e8f7;
+  --text-secondary: #8aabd4;
+  --text-muted:     #5c7aaa;
+  --border:         #1e3a6e;
+  --sidebar-width:  220px;
+  --topbar-height:  56px;
+}
+
+/* ----------------------------------------------------------------
+   Reset / base
+   ---------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  display: flex;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ----------------------------------------------------------------
+   Sidebar
+   ---------------------------------------------------------------- */
+#sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 200;
+  transition: width 0.25s ease;
+  overflow: hidden;
+}
+
+#sidebar.collapsed { width: 60px; }
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px 16px;
+  border-bottom: 1px solid var(--border);
+  min-height: var(--topbar-height);
+  white-space: nowrap;
+}
+
+.brand-icon {
+  width: 34px; height: 34px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.brand-title { font-size: 15px; font-weight: 700; color: #fff; display: block; }
+.brand-sub   { font-size: 11px; color: var(--accent); display: block; }
+
+#sidebar.collapsed .brand-text { display: none; }
+
+.nav-links {
+  list-style: none;
+  padding: 12px 0;
+  flex: 1;
+}
+
+.nav-links li a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 18px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.nav-links li a i { font-size: 17px; flex-shrink: 0; width: 20px; text-align: center; }
+#sidebar.collapsed .nav-links li a span { display: none; }
+
+.nav-links li a:hover {
+  background: rgba(61,142,248,0.10);
+  color: var(--text-primary);
+}
+
+.nav-links li.active a {
+  background: rgba(61,142,248,0.18);
+  color: var(--accent-hover);
+  border-left-color: var(--accent);
+}
+
+/* ----------------------------------------------------------------
+   Main content
+   ---------------------------------------------------------------- */
+#main-content {
+  margin-left: var(--sidebar-width);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: margin-left 0.25s ease;
+  min-width: 0;
+}
+
+#main-content.expanded { margin-left: 60px; }
+
+/* ----------------------------------------------------------------
+   Top bar
+   ---------------------------------------------------------------- */
+#topbar {
+  height: var(--topbar-height);
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  position: sticky; top: 0; z-index: 100;
+}
+
+#topbar .btn-link { color: var(--text-secondary); padding: 0; }
+#topbar .btn-link:hover { color: var(--accent-hover); }
+#page-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
+
+/* ----------------------------------------------------------------
+   Content area
+   ---------------------------------------------------------------- */
+#content-area { padding: 24px; flex: 1; }
+
+/* ----------------------------------------------------------------
+   Filter bar
+   ---------------------------------------------------------------- */
+.filter-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.filter-bar label { color: var(--text-secondary); font-size: 13px; margin-bottom: 0; white-space: nowrap; }
+
+.filter-bar select {
+  background: #0a1628;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  min-width: 160px;
+}
+
+.filter-bar select:focus { outline: none; border-color: var(--accent); }
+
+/* ----------------------------------------------------------------
+   Section cards
+   ---------------------------------------------------------------- */
+.section-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 22px;
+}
+
+.section-title {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+/* ----------------------------------------------------------------
+   Dashboard summary cards
+   ---------------------------------------------------------------- */
+.summary-cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 22px;
+  flex: 1; min-width: 180px;
+}
+
+.summary-card .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.summary-card .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-hover);
+}
+
+.summary-card .sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ----------------------------------------------------------------
+   DataTables overrides
+   ---------------------------------------------------------------- */
+div.dataTables_wrapper { color: var(--text-primary); }
+
+/* Force table-layout fixed on all DT tables for perfect alignment */
+table.dataTable {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+table.dataTable thead th,
+table.dataTable thead td {
+  background: var(--bg-table-head) !important;
+  color: var(--accent) !important;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--border) !important;
+  border-top: none !important;
+  padding: 12px 10px !important;
+  text-align: center !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle !important;
+}
+
+/* Period column – left-aligned */
+table.dataTable thead th:first-child,
+table.dataTable tbody td:first-child {
+  text-align: left !important;
+}
+
+table.dataTable tbody tr {
+  background: var(--bg-table-row) !important;
+}
+
+table.dataTable tbody tr:nth-child(odd) {
+  background: var(--bg-table-alt) !important;
+}
+
+table.dataTable tbody tr:hover td {
+  background: rgba(61,142,248,0.10) !important;
+}
+
+table.dataTable tbody td {
+  color: var(--text-primary) !important;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 10px 10px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sorting icons */
+table.dataTable thead .sorting::after,
+table.dataTable thead .sorting_asc::after,
+table.dataTable thead .sorting_desc::after {
+  opacity: 0.5;
+}
+
+/* Length / search / info / pagination */
+div.dataTables_length label,
+div.dataTables_filter label,
+div.dataTables_info {
+  color: var(--text-secondary) !important;
+  font-size: 12px;
+}
+
+div.dataTables_length select,
+div.dataTables_filter input {
+  background: #0a1628 !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+div.dataTables_filter input:focus { outline: none; border-color: var(--accent) !important; }
+
+/* Pagination */
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 5px;
+  margin: 0 2px;
+  font-size: 12px;
+  padding: 5px 10px !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: rgba(61,142,248,0.15) !important;
+  color: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* ----------------------------------------------------------------
+   DataTables Buttons
+   ---------------------------------------------------------------- */
+.dt-buttons { margin-bottom: 12px; }
+
+.dt-button,
+.dt-button:visited {
+  background: var(--bg-table-head) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  padding: 6px 14px !important;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dt-button:hover {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+/* ----------------------------------------------------------------
+   Charts
+   ---------------------------------------------------------------- */
+.chart-container { position: relative; }
+
+/* ----------------------------------------------------------------
+   Report tabs
+   ---------------------------------------------------------------- */
+.nav-tabs {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.nav-tabs .nav-link {
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  font-size: 13px;
+  padding: 8px 18px;
+}
+
+.nav-tabs .nav-link:hover { color: var(--accent-hover); }
+.nav-tabs .nav-link.active {
+  color: var(--accent-hover);
+  background: var(--bg-card);
+  border-color: var(--border) var(--border) var(--bg-card);
+}
+
+/* ----------------------------------------------------------------
+   Utility
+   ---------------------------------------------------------------- */
+.text-accent { color: var(--accent-hover) !important; }
+.text-muted-custom { color: var(--text-muted) !important; }
+
+.btn-apply {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-apply:hover { background: var(--accent-hover); }
+
+.btn-reset {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.btn-reset:hover { border-color: var(--accent); color: var(--accent-hover); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }

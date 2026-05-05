@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title_suffix %} – Trend Analysis{% endblock %}
+{% block page_title %}Trend Analysis{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="sel-from"></select>
+  <label>To Period:</label>
+  <select id="sel-to"></select>
+  <button class="btn-apply" onclick="loadTrends()">Apply</button>
+  <button class="btn-reset" onclick="resetFilter()">Reset</button>
+</div>
+
+<!-- Expense trend chart -->
+<div class="section-card">
+  <div class="section-title">Total Expense Trend by Nationality</div>
+  <div class="chart-container" style="height:300px;">
+    <canvas id="chart-expense-trend"></canvas>
+  </div>
+</div>
+
+<!-- Cost-per-head trend chart -->
+<div class="section-card">
+  <div class="section-title">Cost Per Head Trend by Nationality</div>
+  <div class="chart-container" style="height:280px;">
+    <canvas id="chart-cph-trend"></canvas>
+  </div>
+</div>
+
+<!-- Trend data table -->
+<div class="section-card">
+  <div class="section-title">Trend Data Table</div>
+  <div class="table-responsive">
+    <table id="trend-table" class="table dataTable" style="width:100%">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>BD Expense</th>
+          <th>BD CPH</th>
+          <th>IN Expense</th>
+          <th>IN CPH</th>
+          <th>ML Expense</th>
+          <th>ML CPH</th>
+          <th>SL Expense</th>
+          <th>SL CPH</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+populatePeriodSelects('sel-from', 'sel-to', () => loadTrends());
+
+function resetFilter() {
+  document.getElementById('sel-from').value = '';
+  document.getElementById('sel-to').value   = '';
+  loadTrends();
+}
+
+function loadTrends() {
+  const qs = getFilterParams('sel-from', 'sel-to');
+  fetch('/api/trends' + qs)
+    .then(r => r.json())
+    .then(data => {
+      renderExpenseChart(data);
+      renderCphChart(data);
+      renderTable(data);
+    });
+}
+
+function renderExpenseChart(data) {
+  makeLineChart('chart-expense-trend', data.periods,
+    NATIONALITIES.map(nat => ({
+      label:   NAT_DISPLAY[nat],
+      data:    data.expenses[nat],
+      color:   NAT_COLORS[nat].border,
+      bgColor: NAT_COLORS[nat].bg,
+    }))
+  );
+}
+
+function renderCphChart(data) {
+  makeLineChart('chart-cph-trend', data.periods,
+    NATIONALITIES.map(nat => ({
+      label:   NAT_DISPLAY[nat] + ' CPH',
+      data:    data.cph[nat],
+      color:   NAT_COLORS[nat].border,
+      bgColor: NAT_COLORS[nat].bg,
+    }))
+  );
+}
+
+function renderTable(data) {
+  const columns = [
+    { data: 'period',                    title: 'Period',      width: '20%' },
+    { data: 'bangladeshi_expense',       title: 'BD Expense',  width: '10%', className: 'dt-center' },
+    { data: 'bangladeshi_cph',           title: 'BD CPH',      width: '10%', className: 'dt-center' },
+    { data: 'indian_expense',            title: 'IN Expense',  width: '10%', className: 'dt-center' },
+    { data: 'indian_cph',                title: 'IN CPH',      width: '10%', className: 'dt-center' },
+    { data: 'malagasy_expense',          title: 'ML Expense',  width: '10%', className: 'dt-center' },
+    { data: 'malagasy_cph',              title: 'ML CPH',      width: '10%', className: 'dt-center' },
+    { data: 'srilankan_expense',         title: 'SL Expense',  width: '10%', className: 'dt-center' },
+    { data: 'srilankan_cph',             title: 'SL CPH',      width: '10%', className: 'dt-center' },
+  ];
+
+  makeDataTable('trend-table', columns, 'Trend Analysis', { data: data.rows, order: [] });
+}
+</script>
+{% endblock %}

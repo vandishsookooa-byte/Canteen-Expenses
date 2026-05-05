@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title_suffix %} – Comparison{% endblock %}
+{% block page_title %}Comparison{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="sel-from"></select>
+  <label>To Period:</label>
+  <select id="sel-to"></select>
+  <button class="btn-apply" onclick="loadComparison()">Apply</button>
+  <button class="btn-reset" onclick="resetFilter()">Reset</button>
+</div>
+
+<!-- Aggregate summary cards -->
+<div class="summary-cards" id="agg-cards">
+  <div class="summary-card">
+    <div class="label">Bangladeshi – Total Cost</div>
+    <div class="value" id="agg-bd-cost">—</div>
+    <div class="sub" id="agg-bd-cph">Avg CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Indian – Total Cost</div>
+    <div class="value" id="agg-in-cost">—</div>
+    <div class="sub" id="agg-in-cph">Avg CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Malagasy – Total Cost</div>
+    <div class="value" id="agg-ml-cost">—</div>
+    <div class="sub" id="agg-ml-cph">Avg CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Sri Lankan – Total Cost</div>
+    <div class="value" id="agg-sl-cost">—</div>
+    <div class="sub" id="agg-sl-cph">Avg CPH: —</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="section-card">
+      <div class="section-title">Total Expense Comparison by Period</div>
+      <div class="chart-container" style="height:260px;">
+        <canvas id="chart-cmp-expense"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="section-card">
+      <div class="section-title">Cost Per Head Comparison by Period</div>
+      <div class="chart-container" style="height:260px;">
+        <canvas id="chart-cmp-cph"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison detail table – Period × Nationality -->
+<div class="section-card">
+  <div class="section-title">Comparison Detail – Expense, Employees &amp; Cost Per Head</div>
+  <div class="table-responsive">
+    <table id="cmp-table" class="table dataTable" style="width:100%">
+      <thead>
+        <tr>
+          <th rowspan="2" style="vertical-align:middle; width:18%">Period</th>
+          <th colspan="3" class="text-center">Bangladeshi</th>
+          <th colspan="3" class="text-center">Indian</th>
+          <th colspan="3" class="text-center">Malagasy</th>
+          <th colspan="3" class="text-center">Sri Lankan</th>
+          <th colspan="3" class="text-center">Total</th>
+        </tr>
+        <tr>
+          <th style="width:5%">Cost</th><th style="width:4%">Emp</th><th style="width:5%">CPH</th>
+          <th style="width:5%">Cost</th><th style="width:4%">Emp</th><th style="width:5%">CPH</th>
+          <th style="width:5%">Cost</th><th style="width:4%">Emp</th><th style="width:5%">CPH</th>
+          <th style="width:5%">Cost</th><th style="width:4%">Emp</th><th style="width:5%">CPH</th>
+          <th style="width:5%">Cost</th><th style="width:4%">Emp</th><th style="width:5%">CPH</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+populatePeriodSelects('sel-from', 'sel-to', () => loadComparison());
+
+function resetFilter() {
+  document.getElementById('sel-from').value = '';
+  document.getElementById('sel-to').value   = '';
+  loadComparison();
+}
+
+function loadComparison() {
+  const qs = getFilterParams('sel-from', 'sel-to');
+  fetch('/api/comparison' + qs)
+    .then(r => r.json())
+    .then(data => {
+      renderAggCards(data.agg);
+      renderCharts(data);
+      renderTable(data);
+    });
+}
+
+function renderAggCards(agg) {
+  document.getElementById('agg-bd-cost').textContent = agg.Bangladeshi.total_cost;
+  document.getElementById('agg-bd-cph').textContent  = 'Avg CPH: ' + agg.Bangladeshi.avg_cph;
+  document.getElementById('agg-in-cost').textContent = agg.Indian.total_cost;
+  document.getElementById('agg-in-cph').textContent  = 'Avg CPH: ' + agg.Indian.avg_cph;
+  document.getElementById('agg-ml-cost').textContent = agg.Malagasy.total_cost;
+  document.getElementById('agg-ml-cph').textContent  = 'Avg CPH: ' + agg.Malagasy.avg_cph;
+  document.getElementById('agg-sl-cost').textContent = agg.Srilankan.total_cost;
+  document.getElementById('agg-sl-cph').textContent  = 'Avg CPH: ' + agg.Srilankan.avg_cph;
+}
+
+function renderCharts(data) {
+  makeBarChart('chart-cmp-expense', data.periods,
+    NATIONALITIES.map(nat => ({
+      label: NAT_DISPLAY[nat], data: data.expenses[nat],
+      color: NAT_COLORS[nat].bg, border: NAT_COLORS[nat].border,
+    })), { currency: true }
+  );
+
+  makeBarChart('chart-cmp-cph', data.periods,
+    NATIONALITIES.map(nat => ({
+      label: NAT_DISPLAY[nat] + ' CPH', data: data.cph[nat],
+      color: NAT_COLORS[nat].bg, border: NAT_COLORS[nat].border,
+    })), { currency: true }
+  );
+}
+
+function renderTable(data) {
+  // Destroy and rebuild with flat columns for DataTables
+  if ($.fn.DataTable.isDataTable('#cmp-table')) {
+    $('#cmp-table').DataTable().destroy();
+    $('#cmp-table thead').html('');   // clear grouped header
+  }
+
+  // Build simple single-row header (grouped header was decorative)
+  const $thead = $('#cmp-table thead');
+  $thead.html(`
+    <tr>
+      <th style="width:18%">Period</th>
+      <th style="width:5%">BD Cost</th><th style="width:4%">BD Emp</th><th style="width:5%">BD CPH</th>
+      <th style="width:5%">IN Cost</th><th style="width:4%">IN Emp</th><th style="width:5%">IN CPH</th>
+      <th style="width:5%">ML Cost</th><th style="width:4%">ML Emp</th><th style="width:5%">ML CPH</th>
+      <th style="width:5%">SL Cost</th><th style="width:4%">SL Emp</th><th style="width:5%">SL CPH</th>
+      <th style="width:5%">Total Cost</th><th style="width:4%">Total Emp</th><th style="width:5%">Total CPH</th>
+    </tr>
+  `);
+
+  const columns = [
+    { data: 'period' },
+    { data: 'bangladeshi_cost', className: 'dt-center' },
+    { data: 'bangladeshi_emp',  className: 'dt-center', render: v => Number(v).toLocaleString() },
+    { data: 'bangladeshi_cph',  className: 'dt-center' },
+    { data: 'indian_cost',      className: 'dt-center' },
+    { data: 'indian_emp',       className: 'dt-center', render: v => Number(v).toLocaleString() },
+    { data: 'indian_cph',       className: 'dt-center' },
+    { data: 'malagasy_cost',    className: 'dt-center' },
+    { data: 'malagasy_emp',     className: 'dt-center', render: v => Number(v).toLocaleString() },
+    { data: 'malagasy_cph',     className: 'dt-center' },
+    { data: 'srilankan_cost',   className: 'dt-center' },
+    { data: 'srilankan_emp',    className: 'dt-center', render: v => Number(v).toLocaleString() },
+    { data: 'srilankan_cph',    className: 'dt-center' },
+    { data: 'total_cost',       className: 'dt-center', render: v => '<strong>' + v + '</strong>' },
+    { data: 'total_emp',        className: 'dt-center', render: v => '<strong>' + Number(v).toLocaleString() + '</strong>' },
+    { data: 'total_cph',        className: 'dt-center', render: v => '<strong>' + v + '</strong>' },
+  ];
+
+  makeDataTable('cmp-table', columns, 'Comparison Report', { data: data.rows, order: [], scrollX: true });
+}
+</script>
+{% endblock %}

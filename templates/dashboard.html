@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title_suffix %} – Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="sel-from"></select>
+  <label>To Period:</label>
+  <select id="sel-to"></select>
+  <button class="btn-apply" onclick="loadDashboard()">Apply</button>
+  <button class="btn-reset" onclick="resetFilter()">Reset</button>
+</div>
+
+<!-- Summary cards -->
+<div class="summary-cards" id="summary-cards">
+  <div class="summary-card">
+    <div class="label">Grand Total Expense</div>
+    <div class="value" id="card-grand-total">—</div>
+    <div class="sub">All nationalities</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Bangladeshi</div>
+    <div class="value" id="card-bd">—</div>
+    <div class="sub" id="card-bd-cph">CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Indian</div>
+    <div class="value" id="card-in">—</div>
+    <div class="sub" id="card-in-cph">CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Malagasy</div>
+    <div class="value" id="card-ml">—</div>
+    <div class="sub" id="card-ml-cph">CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Sri Lankan</div>
+    <div class="value" id="card-sl">—</div>
+    <div class="sub" id="card-sl-cph">CPH: —</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">Total Employees (Latest)</div>
+    <div class="value" id="card-emp">—</div>
+    <div class="sub">All nationalities</div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="section-card">
+      <div class="section-title">Expense Trend by Nationality</div>
+      <div class="chart-container" style="height:280px;">
+        <canvas id="chart-trend"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card">
+      <div class="section-title">Expense Distribution</div>
+      <div class="chart-container" style="height:280px;">
+        <canvas id="chart-dist"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Employee trend chart -->
+<div class="section-card">
+  <div class="section-title">Employee Count Trend</div>
+  <div class="chart-container" style="height:220px;">
+    <canvas id="chart-emp-trend"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dashData = null;
+
+populatePeriodSelects('sel-from', 'sel-to', () => loadDashboard());
+
+function resetFilter() {
+  document.getElementById('sel-from').value = '';
+  document.getElementById('sel-to').value   = '';
+  loadDashboard();
+}
+
+function loadDashboard() {
+  const qs = getFilterParams('sel-from', 'sel-to');
+  fetch('/api/dashboard' + qs)
+    .then(r => r.json())
+    .then(data => {
+      dashData = data;
+      renderCards(data);
+      renderCharts(data);
+    });
+}
+
+function renderCards(d) {
+  document.getElementById('card-grand-total').textContent = d.grand_total;
+  document.getElementById('card-bd').textContent  = d.totals.Bangladeshi;
+  document.getElementById('card-in').textContent  = d.totals.Indian;
+  document.getElementById('card-ml').textContent  = d.totals.Malagasy;
+  document.getElementById('card-sl').textContent  = d.totals.Srilankan;
+  document.getElementById('card-bd-cph').textContent = 'CPH: ' + d.cost_per_head.Bangladeshi;
+  document.getElementById('card-in-cph').textContent = 'CPH: ' + d.cost_per_head.Indian;
+  document.getElementById('card-ml-cph').textContent = 'CPH: ' + d.cost_per_head.Malagasy;
+  document.getElementById('card-sl-cph').textContent = 'CPH: ' + d.cost_per_head.Srilankan;
+  document.getElementById('card-emp').textContent = Number(d.total_employees).toLocaleString();
+}
+
+function renderCharts(d) {
+  // Expense trend line chart
+  makeLineChart('chart-trend', d.periods,
+    NATIONALITIES.map(nat => ({
+      label:   NAT_DISPLAY[nat],
+      data:    d.expense_by_period[nat],
+      color:   NAT_COLORS[nat].border,
+      bgColor: NAT_COLORS[nat].bg,
+    }))
+  );
+
+  // Doughnut distribution
+  const totals = NATIONALITIES.map(nat => d.expense_by_period[nat].reduce((a, b) => a + b, 0));
+  makeDoughnutChart('chart-dist',
+    NATIONALITIES.map(n => NAT_DISPLAY[n]),
+    totals,
+    NATIONALITIES.map(n => NAT_COLORS[n].border)
+  );
+
+  // Employee bar chart
+  makeBarChart('chart-emp-trend', d.periods,
+    NATIONALITIES.map(nat => ({
+      label:  NAT_DISPLAY[nat],
+      data:   d.emp_by_period[nat],
+      color:  NAT_COLORS[nat].bg,
+      border: NAT_COLORS[nat].border,
+    }))
+  );
+}
+</script>
+{% endblock %}
