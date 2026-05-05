@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canteen Expenses Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1c2333;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --accent2:   #3fb950;
+      --accent3:   #f78166;
+      --accent4:   #d2a8ff;
+      --accent5:   #ffa657;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --danger:    #f85149;
+      --nat-bd:    #58a6ff;
+      --nat-mg:    #3fb950;
+      --nat-in:    #f78166;
+      --nat-sl:    #d2a8ff;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 13px;
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── Header / Nav ─────────────────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 52px;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 15px; font-weight: 600; color: var(--text);
+      text-decoration: none; letter-spacing: .3px;
+    }
+    .brand .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; } 50% { opacity:.4; }
+    }
+
+    nav { display: flex; gap: 4px; }
+    nav button {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-size: 12px; font-weight: 500;
+      padding: 6px 14px; border-radius: 6px;
+      transition: all .15s;
+    }
+    nav button:hover { background: var(--surface2); color: var(--text); }
+    nav button.active { background: var(--surface2); color: var(--accent); }
+
+    .header-meta { font-size: 11px; color: var(--muted); }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+    section { display: none; }
+    section.active { display: block; }
+
+    /* ── Section titles ───────────────────────────────────────────── */
+    .section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .section-header h2 {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      text-transform: uppercase; letter-spacing: .8px;
+    }
+    .section-header .line {
+      flex: 1; height: 1px; background: var(--border);
+    }
+    .badge {
+      font-size: 10px; padding: 2px 8px; border-radius: 20px;
+      background: var(--surface2); color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    /* ── KPI Cards ────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      position: relative; overflow: hidden;
+      transition: border-color .2s, transform .15s;
+    }
+    .kpi-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: var(--card-accent, var(--accent));
+    }
+    .kpi-card .label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .kpi-card .value {
+      font-size: 22px; font-weight: 700;
+      color: var(--card-accent, var(--accent));
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .kpi-card .sub {
+      font-size: 10px; color: var(--muted); margin-top: 4px;
+    }
+    .kpi-card.bd { --card-accent: var(--nat-bd); }
+    .kpi-card.mg { --card-accent: var(--nat-mg); }
+    .kpi-card.in { --card-accent: var(--nat-in); }
+    .kpi-card.sl { --card-accent: var(--nat-sl); }
+    .kpi-card.total { --card-accent: var(--accent5); }
+
+    /* ── Chart grid ───────────────────────────────────────────────── */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 20px;
+    }
+    @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .chart-card .chart-title {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); margin-bottom: 12px;
+    }
+    .chart-card canvas { display: block; }
+
+    /* ── Report Section ───────────────────────────────────────────── */
+    .report-toolbar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+      margin-bottom: 12px;
+    }
+
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted);
+    }
+
+    select, input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color .15s;
+      font-family: inherit;
+    }
+    select { min-width: 140px; }
+    input[type="text"] { min-width: 180px; }
+    select:focus, input[type="text"]:focus { border-color: var(--accent); }
+
+    .btn {
+      border: none; cursor: pointer; border-radius: 5px;
+      padding: 6px 14px; font-size: 12px; font-weight: 500;
+      transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary:hover { background: #79c0ff; }
+    .btn-ghost {
+      background: var(--surface2); color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+    .btn-success { background: var(--accent2); color: #0d1117; }
+    .btn-success:hover { filter: brightness(1.1); }
+
+    .toolbar-actions { display: flex; gap: 8px; align-items: flex-end; }
+
+    /* Report meta bar */
+    .report-meta {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 8px; font-size: 11px; color: var(--muted);
+    }
+    .report-meta strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    /* Table wrapper */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .table-scroll { overflow-x: auto; max-height: 540px; overflow-y: auto; }
+
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    thead { position: sticky; top: 0; z-index: 10; }
+
+    thead th {
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .6px;
+      padding: 9px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      user-select: none; cursor: pointer;
+      transition: color .15s;
+    }
+    thead th:hover { color: var(--text); }
+    thead th.sorted-asc::after { content: ' ↑'; color: var(--accent); }
+    thead th.sorted-desc::after { content: ' ↓'; color: var(--accent); }
+    thead th.num { text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(48,54,61,.5);
+      transition: background .1s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 7px 12px; color: var(--text);
+      white-space: nowrap;
+    }
+    tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody td.total-cell { color: var(--accent5); font-weight: 600; }
+
+    /* Nationality pill */
+    .nat-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 10px; font-weight: 600; letter-spacing: .4px;
+    }
+    .nat-Bangladeshi { background: rgba(88,166,255,.12); color: var(--nat-bd); border: 1px solid rgba(88,166,255,.25); }
+    .nat-Malagasy    { background: rgba(63,185,80,.12);  color: var(--nat-mg); border: 1px solid rgba(63,185,80,.25); }
+    .nat-Indian      { background: rgba(247,129,102,.12);color: var(--nat-in); border: 1px solid rgba(247,129,102,.25); }
+    .nat-Srilankan   { background: rgba(210,168,255,.12);color: var(--nat-sl); border: 1px solid rgba(210,168,255,.25); }
+
+    /* Table footer */
+    .table-footer {
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; color: var(--muted);
+    }
+    .table-footer strong { color: var(--accent5); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+    /* ── Employees table ──────────────────────────────────────────── */
+    .emp-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+
+    /* ── Error banner ─────────────────────────────────────────────── */
+    .error-banner {
+      background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.3);
+      border-radius: 8px; padding: 14px 18px; color: var(--danger);
+      font-size: 13px; margin-bottom: 16px; display: none;
+    }
+
+    /* ── Loading spinner ──────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .6s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-row td {
+      text-align: center; color: var(--muted); padding: 40px !important;
+    }
+
+    /* ── Top-items list ───────────────────────────────────────────── */
+    .top-items-list { list-style: none; }
+    .top-items-list li {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,.4);
+      font-size: 12px;
+    }
+    .top-items-list li:last-child { border-bottom: none; }
+    .top-items-list .item-rank {
+      font-size: 10px; color: var(--muted); width: 18px; text-align: right;
+    }
+    .top-items-list .item-name { flex: 1; color: var(--text); }
+    .top-items-list .item-bar-wrap {
+      width: 120px; height: 4px; background: var(--surface2);
+      border-radius: 2px; overflow: hidden;
+    }
+    .top-items-list .item-bar {
+      height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent4));
+    }
+    .top-items-list .item-total {
+      width: 90px; text-align: right;
+      color: var(--accent5); font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────── -->
+<header>
+  <a class="brand" href="#">
+    <span class="dot"></span>
+    Canteen Expenses
+  </a>
+  <nav>
+    <button class="active" onclick="switchTab('overview', this)">Overview</button>
+    <button onclick="switchTab('report', this)">Report</button>
+    <button onclick="switchTab('employees', this)">Employees</button>
+  </nav>
+  <div class="header-meta" id="lastUpdated">Loading…</div>
+</header>
+
+<!-- ── MAIN ────────────────────────────────────────────────────────── -->
+<main>
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- ══ OVERVIEW ════════════════════════════════════════════════════ -->
+  <section id="tab-overview" class="active">
+
+    <!-- KPI Row -->
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card total">
+        <div class="label">Grand Total</div>
+        <div class="value" id="kpiGrand">—</div>
+        <div class="sub">All nationalities</div>
+      </div>
+      <div class="kpi-card bd">
+        <div class="label">Bangladeshi</div>
+        <div class="value" id="kpiBd">—</div>
+        <div class="sub">Total spend</div>
+      </div>
+      <div class="kpi-card mg">
+        <div class="label">Malagasy</div>
+        <div class="value" id="kpiMg">—</div>
+        <div class="sub">Total spend</div>
+      </div>
+      <div class="kpi-card in">
+        <div class="label">Indian</div>
+        <div class="value" id="kpiIn">—</div>
+        <div class="sub">Total spend</div>
+      </div>
+      <div class="kpi-card sl">
+        <div class="label">Srilankan</div>
+        <div class="value" id="kpiSl">—</div>
+        <div class="sub">Total spend</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-title">Spend by Nationality</div>
+        <canvas id="chartNat" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Period Trend — All Nationalities</div>
+        <canvas id="chartPeriod" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="chart-grid">
+      <div class="chart-card" style="grid-column: span 1;">
+        <div class="chart-title">Per-Nationality Period Breakdown</div>
+        <canvas id="chartNatPeriod" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top 10 Items by Spend</div>
+        <ul class="top-items-list" id="topItemsList"></ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══ REPORT ══════════════════════════════════════════════════════ -->
+  <section id="tab-report">
+
+    <!-- Toolbar -->
+    <div class="report-toolbar">
+      <div class="filter-group">
+        <label>Nationality</label>
+        <select id="filterNat" onchange="applyFilters()">
+          <option value="All">All</option>
+          <option value="Bangladeshi">Bangladeshi</option>
+          <option value="Malagasy">Malagasy</option>
+          <option value="Indian">Indian</option>
+          <option value="Srilankan">Srilankan</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Period</label>
+        <select id="filterPeriod" onchange="applyFilters()">
+          <option value="All">All Periods</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Search Item</label>
+        <input type="text" id="filterItem" placeholder="e.g. rice, chicken…" oninput="debounceFilter()" />
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn btn-ghost" onclick="clearFilters()">Clear</button>
+        <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+        <button class="btn btn-success" onclick="exportCSV()">⬇ CSV</button>
+      </div>
+    </div>
+
+    <!-- Meta bar -->
+    <div class="report-meta">
+      <span>Rows: <strong id="metaCount">—</strong></span>
+      <span>|</span>
+      <span>Filtered Total: <strong id="metaTotal">—</strong></span>
+      <span id="loadingIndicator" style="display:none">
+        <span class="spinner"></span> Loading…
+      </span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="reportTable">
+          <thead>
+            <tr>
+              <th onclick="sortBy('PERIOD')">Period</th>
+              <th onclick="sortBy('NATIONALITY')">Nationality</th>
+              <th onclick="sortBy('ITEMS')">Item</th>
+              <th class="num" onclick="sortBy('QTY')">Qty</th>
+              <th onclick="sortBy('UNIT')">Unit</th>
+              <th class="num" onclick="sortBy('UNIT PRICE')">Unit Price</th>
+              <th class="num" onclick="sortBy('TOTAL')">Total</th>
+            </tr>
+          </thead>
+          <tbody id="reportBody">
+            <tr class="loading-row"><td colspan="7"><span class="spinner"></span> Loading data…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <span id="footerCount">—</span>
+        <span>Total: <strong id="footerTotal">—</strong></span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══ EMPLOYEES ═══════════════════════════════════════════════════ -->
+  <section id="tab-employees">
+    <div class="section-header">
+      <h2>Employee Headcount</h2>
+      <div class="line"></div>
+    </div>
+
+    <div class="table-wrap" style="max-width:720px">
+      <div class="table-scroll">
+        <table id="empTable">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="num" style="--card-accent:var(--nat-bd)">Bangladeshi</th>
+              <th class="num">Malagasy</th>
+              <th class="num">Indian</th>
+              <th class="num">Srilankan</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody id="empBody">
+            <tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── SCRIPTS ─────────────────────────────────────────────────────── -->
+<script>
+  /* ── Helpers ───────────────────────────────────────────────────── */
+  const fmt = n => {
+    if (n === null || n === undefined || n === '') return '—';
+    const num = parseFloat(n);
+    if (isNaN(num)) return n;
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  const fmtInt = n => Number(n).toLocaleString('en-US');
+
+  /* ── Tab switching ─────────────────────────────────────────────── */
+  function switchTab(id, btn) {
+    document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+    if (id === 'report') loadReport();
+  }
+
+  /* ── Error banner ──────────────────────────────────────────────── */
+  function showError(msg) {
+    const el = document.getElementById('errorBanner');
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  /* ── Chart helpers ─────────────────────────────────────────────── */
+  const chartDefaults = {
+    responsive: true,
+    plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+    scales: {
+      x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,.4)' } },
+      y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(48,54,61,.4)' } }
+    }
+  };
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.borderColor = 'rgba(48,54,61,.4)';
+
+  let charts = {};
+  function mkChart(id, cfg) {
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(document.getElementById(id), cfg);
+  }
+
+  /* ── Load overview ─────────────────────────────────────────────── */
+  async function loadOverview() {
+    try {
+      const res = await fetch('/api/summary');
+      if (!res.ok) { showError('Excel file not found. Ensure Canteen.xlsx is in the project folder.'); return; }
+      const d = await res.json();
+      document.getElementById('lastUpdated').textContent = 'Live data';
+
+      // KPIs
+      document.getElementById('kpiGrand').textContent = fmt(d.grand_total);
+      document.getElementById('kpiBd').textContent = fmt(d.nat_totals?.Bangladeshi ?? 0);
+      document.getElementById('kpiMg').textContent = fmt(d.nat_totals?.Malagasy ?? 0);
+      document.getElementById('kpiIn').textContent = fmt(d.nat_totals?.Indian ?? 0);
+      document.getElementById('kpiSl').textContent = fmt(d.nat_totals?.Srilankan ?? 0);
+
+      // Chart: nationality donut
+      const natColors = ['#58a6ff','#3fb950','#f78166','#d2a8ff'];
+      const nats = ['Bangladeshi','Malagasy','Indian','Srilankan'];
+      mkChart('chartNat', {
+        type: 'doughnut',
+        data: {
+          labels: nats,
+          datasets: [{ data: nats.map(n => d.nat_totals?.[n] ?? 0), backgroundColor: natColors, borderColor: '#161b22', borderWidth: 3 }]
+        },
+        options: {
+          responsive: true, cutout: '62%',
+          plugins: {
+            legend: { position: 'right', labels: { color: '#8b949e', font:{size:11}, padding: 14 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.parsed)}` } }
+          }
+        }
+      });
+
+      // Chart: period trend (line)
+      if (d.period_totals?.length) {
+        const labels = d.period_totals.map(r => r.PERIOD);
+        const vals   = d.period_totals.map(r => r.TOTAL);
+        mkChart('chartPeriod', {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Total Spend', data: vals, borderColor: '#ffa657', backgroundColor: 'rgba(255,166,87,.08)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#ffa657', tension: .35, fill: true }] },
+          options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } } }
+        });
+      }
+
+      // Chart: per-nat per-period (stacked bar)
+      if (d.nat_period) {
+        const allPeriods = [...new Set(nats.flatMap(n => (d.nat_period[n] || []).map(r => r.PERIOD)))].sort();
+        const datasets = nats.map((n, i) => {
+          const map = Object.fromEntries((d.nat_period[n] || []).map(r => [r.PERIOD, r.TOTAL]));
+          return { label: n, data: allPeriods.map(p => map[p] ?? 0), backgroundColor: natColors[i] + 'cc', borderColor: natColors[i], borderWidth: 1 };
+        });
+        mkChart('chartNatPeriod', {
+          type: 'bar',
+          data: { labels: allPeriods, datasets },
+          options: {
+            ...chartDefaults, responsive: true,
+            scales: {
+              x: { stacked: true, ticks: { color: '#8b949e', font:{size:10} }, grid: { color: 'rgba(48,54,61,.4)' } },
+              y: { stacked: true, ticks: { color: '#8b949e', font:{size:10} }, grid: { color: 'rgba(48,54,61,.4)' } }
+            }
+          }
+        });
+      }
+
+      // Top items list
+      if (d.top_items?.length) {
+        const max = d.top_items[0].TOTAL;
+        const ul = document.getElementById('topItemsList');
+        ul.innerHTML = d.top_items.map((it, i) => `
+          <li>
+            <span class="item-rank">${i+1}</span>
+            <span class="item-name">${it.ITEMS}</span>
+            <span class="item-bar-wrap"><span class="item-bar" style="width:${(it.TOTAL/max*100).toFixed(1)}%"></span></span>
+            <span class="item-total">${fmt(it.TOTAL)}</span>
+          </li>`).join('');
+      }
+
+      // Employees
+      if (d.employees?.length) {
+        const cols = ['BANGLADESHI','INDIAN','MALAGASY','SRILANKAN'];
+        document.getElementById('empBody').innerHTML = d.employees.map(row => {
+          const tot = cols.reduce((s, c) => s + (row[c] || 0), 0);
+          return `<tr>
+            <td>${row.PERIOD ?? '—'}</td>
+            ${cols.map(c => `<td class="num">${fmtInt(row[c] ?? 0)}</td>`).join('')}
+            <td class="num total-cell">${fmtInt(tot)}</td>
+          </tr>`;
+        }).join('');
+      }
+
+    } catch(e) {
+      showError('Failed to load data: ' + e.message);
+    }
+  }
+
+  /* ── Report section ────────────────────────────────────────────── */
+  let currentSort = 'TOTAL', currentDir = 'desc', reportRows = [];
+  let debounceTimer;
+
+  function debounceFilter() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(applyFilters, 400);
+  }
+
+  async function loadReport() {
+    const nat    = document.getElementById('filterNat').value;
+    const period = document.getElementById('filterPeriod').value;
+    const item   = document.getElementById('filterItem').value;
+
+    document.getElementById('loadingIndicator').style.display = 'inline';
+
+    const params = new URLSearchParams({ nationality: nat, period, item, sort: currentSort, dir: currentDir });
+    try {
+      const res = await fetch('/api/report?' + params);
+      const d = await res.json();
+
+      // Populate period dropdown (first load only)
+      const sel = document.getElementById('filterPeriod');
+      if (sel.options.length <= 1 && d.periods?.length) {
+        d.periods.forEach(p => {
+          const o = document.createElement('option');
+          o.value = o.textContent = p;
+          sel.appendChild(o);
+        });
+      }
+
+      reportRows = d.rows;
+      renderTable(d.rows, d.total, d.count);
+    } catch(e) {
+      document.getElementById('reportBody').innerHTML = `<tr class="loading-row"><td colspan="7">Error: ${e.message}</td></tr>`;
+    } finally {
+      document.getElementById('loadingIndicator').style.display = 'none';
+    }
+  }
+
+  function renderTable(rows, total, count) {
+    const fmtTotal = fmt(total);
+    document.getElementById('metaCount').textContent = fmtInt(count);
+    document.getElementById('metaTotal').textContent = fmtTotal;
+    document.getElementById('footerCount').textContent = `${fmtInt(count)} records`;
+    document.getElementById('footerTotal').textContent = fmtTotal;
+
+    // Update sort indicators
+    document.querySelectorAll('#reportTable thead th').forEach(th => {
+      th.classList.remove('sorted-asc','sorted-desc');
+    });
+    const colMap = { PERIOD:0, NATIONALITY:1, ITEMS:2, QTY:3, UNIT:4, 'UNIT PRICE':5, TOTAL:6 };
+    const thIdx = colMap[currentSort];
+    if (thIdx !== undefined) {
+      const ths = document.querySelectorAll('#reportTable thead th');
+      ths[thIdx]?.classList.add(currentDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+
+    if (!rows.length) {
+      document.getElementById('reportBody').innerHTML = `<tr class="loading-row"><td colspan="7">No records match the filters.</td></tr>`;
+      return;
+    }
+
+    document.getElementById('reportBody').innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.PERIOD ?? '—'}</td>
+        <td><span class="nat-pill nat-${r.NATIONALITY}">${r.NATIONALITY ?? '—'}</span></td>
+        <td>${r.ITEMS ?? '—'}</td>
+        <td class="num">${fmt(r.QTY)}</td>
+        <td>${r.UNIT ?? '—'}</td>
+        <td class="num">${fmt(r['UNIT PRICE'])}</td>
+        <td class="num total-cell">${fmt(r.TOTAL)}</td>
+      </tr>`).join('');
+  }
+
+  function applyFilters() { loadReport(); }
+
+  function clearFilters() {
+    document.getElementById('filterNat').value = 'All';
+    document.getElementById('filterPeriod').value = 'All';
+    document.getElementById('filterItem').value = '';
+    currentSort = 'TOTAL'; currentDir = 'desc';
+    loadReport();
+  }
+
+  function sortBy(col) {
+    if (currentSort === col) currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+    else { currentSort = col; currentDir = col === 'TOTAL' || col === 'QTY' || col === 'UNIT PRICE' ? 'desc' : 'asc'; }
+    loadReport();
+  }
+
+  /* ── CSV Export ────────────────────────────────────────────────── */
+  function exportCSV() {
+    if (!reportRows.length) return;
+    const cols = ['PERIOD','NATIONALITY','ITEMS','QTY','UNIT','UNIT PRICE','TOTAL'];
+    const header = cols.join(',');
+    const rows = reportRows.map(r => cols.map(c => {
+      const v = r[c] ?? '';
+      return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
+    }).join(','));
+    const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'canteen_report.csv';
+    a.click();
+  }
+
+  /* ── Init ──────────────────────────────────────────────────────── */
+  loadOverview();
+</script>
+</body>
+</html>
