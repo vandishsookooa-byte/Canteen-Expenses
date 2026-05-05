@@ -1,0 +1,106 @@
+/* ================================================================
+   Canteen Expenses – Custom Stylesheet
+   ================================================================ */
+
+/* ---------- Typography & Base ---------- */
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-color: #f0f2f5;
+  color: #212529;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+/* ---------- Navbar ---------- */
+.navbar-brand {
+  font-size: 1.1rem;
+  letter-spacing: .03em;
+}
+
+/* ---------- Number alignment ----------
+   Numbers (currencies, quantities) are right-aligned and use
+   tabular (monospaced) figures so decimal points and thousands
+   separators line up perfectly in every column.
+   ---------------------------------------------------------------- */
+.num-right {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+}
+
+/* Ensure table header cells also respect num-right */
+th.num-right {
+  text-align: right !important;
+}
+
+/* Compact numeric column for expense tables */
+.expense-table td,
+.expense-table th {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.expense-table td.num-right,
+.expense-table th.num-right {
+  font-variant-numeric: tabular-nums;
+  text-align: right !important;
+  padding-right: 1.25rem !important;
+}
+
+.expense-table td:first-child,
+.expense-table th:first-child {
+  padding-left: 1rem;
+}
+
+/* Subtle row hover */
+.expense-table tbody tr:hover {
+  background-color: rgba(13, 110, 253, .04);
+}
+
+/* ---------- Cards ---------- */
+.card {
+  border-radius: .75rem;
+}
+
+.card-header {
+  border-radius: .75rem .75rem 0 0 !important;
+}
+
+/* ---------- Progress bars ---------- */
+.progress {
+  border-radius: 4px;
+}
+
+/* ---------- Alerts ---------- */
+.alert {
+  border-radius: .75rem;
+  border: none;
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  border-top: 1px solid #dee2e6;
+  background-color: #fff;
+  color: #6c757d;
+  font-size: .8rem;
+}
+
+/* ---------- Badges ---------- */
+.badge.rounded-circle {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Responsive tweaks ---------- */
+@media (max-width: 576px) {
+  .h5.fw-bold { font-size: 1rem; }
+  .fs-4 { font-size: 1.1rem !important; }
+}

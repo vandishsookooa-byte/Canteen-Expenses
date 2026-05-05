@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% set periods = all_periods %}
+{% block title %}{{ period }} – Canteen Expenses{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb & nav -->
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+    <li class="breadcrumb-item active">{{ period }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <h1 class="h3 fw-bold mb-0">
+    <i class="bi bi-calendar3 me-2 text-primary"></i>{{ period }}
+  </h1>
+  <!-- Period selector -->
+  <form method="get" action="" class="d-flex align-items-center gap-2">
+    <select class="form-select form-select-sm" name="_period_nav" onchange="
+      window.location='/period/'+encodeURIComponent(this.value);">
+      {% for p in all_periods %}
+      <option value="{{ p }}" {% if p == period %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Grand total banner -->
+<div class="alert alert-dark d-flex justify-content-between align-items-center mb-4 py-3 px-4 shadow-sm">
+  <span class="fw-semibold fs-6"><i class="bi bi-cash-coin me-2 text-warning"></i>Period Grand Total</span>
+  <span class="fs-4 fw-bold num-right text-warning">{{ grand_total | format_num }}</span>
+</div>
+
+<!-- Nationality summary cards -->
+<div class="row g-3 mb-4">
+  {% for nat in ['Bangladeshi', 'Indian', 'Malagasy', 'Srilankan'] %}
+  {% set colour = nat_colours[nat] %}
+  <div class="col-6 col-lg-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase fw-semibold mb-1">{{ nat }}</div>
+        <div class="h5 fw-bold num-right">{{ nat_subtotals[nat] | format_num }}</div>
+        {% if emp_row %}
+        <small class="text-muted">
+          <i class="bi bi-person-fill me-1"></i>{{ emp_row.get(nat, 0) }} employee(s)
+        </small>
+        {% if emp_row.get(nat, 0) > 0 %}
+        <br>
+        <small class="text-muted">
+          Cost/head:
+          <strong class="text-dark">{{ (nat_subtotals[nat] / emp_row[nat]) | format_num }}</strong>
+        </small>
+        {% endif %}
+        {% endif %}
+        <div class="progress mt-2" style="height:4px;">
+          {% set pct = (nat_subtotals[nat] / grand_total * 100) if grand_total > 0 else 0 %}
+          <div class="progress-bar bg-{{ colour }}" style="width:{{ '%.1f'|format(pct) }}%"></div>
+        </div>
+        <small class="text-muted">{{ '%.1f'|format(pct) }}% of period</small>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Per-nationality expense tables -->
+{% for nat in ['Bangladeshi', 'Indian', 'Malagasy', 'Srilankan'] %}
+{% set colour = nat_colours[nat] %}
+{% set rows = nat_data[nat] %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-{{ colour }} {% if colour == 'warning' %}text-dark{% else %}text-white{% endif %} fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-people-fill me-2"></i>{{ nat }}</span>
+    <span class="badge bg-white text-dark num-right">{{ nat_subtotals[nat] | format_num }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if rows %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0 expense-table">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">#</th>
+            <th>Item</th>
+            <th class="num-right">Qty</th>
+            <th>Unit</th>
+            <th class="num-right">Unit Price</th>
+            <th class="num-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="ps-3 text-muted small">{{ loop.index }}</td>
+            <td class="fw-medium">{{ row.get('ITEMS', '') }}</td>
+            <td class="num-right">{{ row.get('QTY', 0) | format_qty }}</td>
+            <td class="text-muted">{{ row.get('UNIT', '') }}</td>
+            <td class="num-right">{{ row.get('UNIT PRICE', 0) | format_num }}</td>
+            <td class="num-right fw-semibold">{{ row.get('TOTAL', 0) | format_num }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="5" class="text-end pe-2">Subtotal</td>
+            <td class="num-right text-primary">{{ nat_subtotals[nat] | format_num }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted py-3 text-center mb-0">No data for this period.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

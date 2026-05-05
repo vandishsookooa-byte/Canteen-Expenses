@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set periods = all_periods %}
+{% block title %}Consumption by Item – Canteen Expenses{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Dashboard</a></li>
+    <li class="breadcrumb-item active">Consumption by Item</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <h1 class="h3 fw-bold mb-0">
+    <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Consumption Report — By Item
+  </h1>
+  <!-- Period filter -->
+  <form method="get" class="d-flex align-items-center gap-2">
+    <label class="form-label mb-0 text-muted small">Filter by Period:</label>
+    <select class="form-select form-select-sm" name="period" onchange="this.form.submit()">
+      <option value="">All Periods</option>
+      {% for p in all_periods %}
+      <option value="{{ p }}" {% if p == selected_period %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    {% if selected_period %}
+    <a href="{{ url_for('report_item') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x-circle me-1"></i>Clear
+    </a>
+    {% endif %}
+  </form>
+</div>
+
+{% if selected_period %}
+<div class="alert alert-info py-2 px-3 mb-3 small">
+  <i class="bi bi-funnel-fill me-1"></i>Showing data for period: <strong>{{ selected_period }}</strong>
+</div>
+{% endif %}
+
+<!-- Grand total -->
+<div class="alert alert-dark d-flex justify-content-between align-items-center mb-4 py-3 px-4 shadow-sm">
+  <span class="fw-semibold"><i class="bi bi-cash-coin me-2 text-warning"></i>Total Spend (all items)</span>
+  <span class="fs-4 fw-bold num-right text-warning">{{ grand_total | format_num }}</span>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header bg-dark text-white fw-semibold">
+    <i class="bi bi-list-ul me-2"></i>Item Consumption Summary
+    <span class="badge bg-secondary ms-2">{{ item_rows | length }} item(s)</span>
+  </div>
+  <div class="card-body p-0">
+    {% if item_rows %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 expense-table" id="itemTable">
+        <thead class="table-dark">
+          <tr>
+            <th class="ps-3" style="width:3rem;">#</th>
+            <th>Item</th>
+            <th class="num-right" style="width:10rem;">Total Qty</th>
+            <th class="num-right" style="width:12rem;">Total Spend</th>
+            <th style="width:14rem;">Share of Spend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in item_rows %}
+          {% set pct = (row['TOTAL_SPEND'] / grand_total * 100) if grand_total > 0 else 0 %}
+          <tr>
+            <td class="ps-3 text-muted small">{{ loop.index }}</td>
+            <td class="fw-medium">{{ row['ITEMS'] }}</td>
+            <td class="num-right">{{ row['TOTAL_QTY'] | format_qty }}</td>
+            <td class="num-right fw-semibold">{{ row['TOTAL_SPEND'] | format_num }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:8px;">
+                  <div class="progress-bar bg-primary" style="width:{{ '%.2f'|format(pct) }}%"></div>
+                </div>
+                <span class="text-muted small" style="min-width:3.5rem;">{{ '%.1f'|format(pct) }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="3" class="text-end pe-2">Grand Total</td>
+            <td class="num-right text-primary">{{ grand_total | format_num }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4 mb-0">No data available.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
