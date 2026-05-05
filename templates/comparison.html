@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Comparison – Items Consumption Analysis{% endblock %}
+{% block page_title %}Comparison – Items Consumption Analysis{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="fromPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="toPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn-apply" id="btnApply"><i class="fas fa-check"></i> Apply</button>
+  <button class="btn-reset" id="btnReset">Reset</button>
+</div>
+
+<!-- Nationality filter pills -->
+<div class="filter-bar" style="gap:12px; margin-bottom:18px;">
+  <span class="nat-filter-label"><i class="fas fa-flag"></i> Nationality:</span>
+  <div class="nat-filter" id="natFilter">
+    <input type="radio" name="natPill" class="nat-pill-check" id="pill-all" value="" checked>
+    <label class="nat-pill" for="pill-all" style="border-color:#4fc3f7;color:#4fc3f7;">All</label>
+
+    <input type="radio" name="natPill" class="nat-pill-check" id="pill-bd"  value="Bangladeshi">
+    <label class="nat-pill" for="pill-bd"  style="color:#4472ca;">Bangladeshi</label>
+
+    <input type="radio" name="natPill" class="nat-pill-check" id="pill-in"  value="Indian">
+    <label class="nat-pill" for="pill-in"  style="color:#d4a017;">Indian</label>
+
+    <input type="radio" name="natPill" class="nat-pill-check" id="pill-ml"  value="Malagasy">
+    <label class="nat-pill" for="pill-ml"  style="color:#70ad47;">Malagasy</label>
+
+    <input type="radio" name="natPill" class="nat-pill-check" id="pill-sl"  value="Srilankan">
+    <label class="nat-pill" for="pill-sl"  style="color:#c55a11;">Sri Lankan</label>
+  </div>
+</div>
+
+<!-- Summary chart: Cost per head across nationalities (top items) -->
+<div class="chart-card" id="summaryChartCard">
+  <div class="chart-card-title">Cost / Head (Rs) – Top Items by Nationality</div>
+  <canvas id="summaryChart" height="90"></canvas>
+</div>
+
+<!-- Per-nationality tables + charts -->
+<div id="natSections"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let summaryChart;
+const NAT_COLORS_MAP = {
+  'Bangladeshi': '#4472ca',
+  'Indian':      '#d4a017',
+  'Malagasy':    '#70ad47',
+  'Sri Lankan':  '#c55a11'
+};
+
+function selectedNat() {
+  return document.querySelector('input[name="natPill"]:checked')?.value || '';
+}
+
+function load() {
+  const params = buildPeriodParams();
+  const nat    = selectedNat();
+  const sep    = params ? '&' : '?';
+  const url    = '/api/comparison' + params + (nat ? sep + 'nationality=' + encodeURIComponent(nat) : '');
+  fetch(url)
+    .then(r => r.json())
+    .then(d => {
+      renderSummary(d);
+      renderSections(d);
+    });
+}
+
+function renderSummary(d) {
+  // Grouped bar chart: each group = item, bars = nationality, value = cost_per_head
+  const allNats = Object.keys(d.data);
+  if (!allNats.length) return;
+
+  // Collect top items per nationality (by cost_per_head), max 10
+  const itemSet = new Set();
+  allNats.forEach(n => {
+    const sorted = [...(d.data[n] || [])].sort((a, b) => b.cost_per_head - a.cost_per_head);
+    sorted.slice(0, 10).forEach(r => itemSet.add(r.item));
+  });
+  const items = Array.from(itemSet);
+
+  if (summaryChart) summaryChart.destroy();
+  const ctx = document.getElementById('summaryChart').getContext('2d');
+
+  const datasets = allNats.map(nat => {
+    const clr = NAT_COLORS_MAP[nat] || '#888';
+    const cMap = {};
+    (d.data[nat] || []).forEach(r => { cMap[r.item] = r.cost_per_head; });
+    return {
+      label:           nat,
+      data:            items.map(it => cMap[it] || 0),
+      backgroundColor: clr + 'bb',
+      borderColor:     clr,
+      borderWidth:     2,
+    };
+  });
+
+  summaryChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: items, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#a8c0d6', boxWidth: 12, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+          titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+          callbacks: {
+            label: ctx => ' ' + ctx.dataset.label + ': ' + fmtCurrency(ctx.parsed.y) + '/head'
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7fa8c9', maxRotation: 30 }, grid: { color: '#1b3a5c' } },
+        y: { ticks: { color: '#7fa8c9', callback: v => 'Rs ' + fmtNum(v) }, grid: { color: '#1b3a5c' },
+             title: { display: true, text: 'Rs / Head', color: '#7fa8c9', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderSections(d) {
+  const container = document.getElementById('natSections');
+  // Destroy any existing DataTables before clearing the DOM
+  container.querySelectorAll('table').forEach(t => {
+    if ($.fn.DataTable.isDataTable(t)) {
+      $(t).DataTable().destroy();
+    }
+  });
+  // Destroy existing Chart.js instances stored on canvas elements
+  container.querySelectorAll('canvas').forEach(c => {
+    const ch = Chart.getChart(c);
+    if (ch) ch.destroy();
+  });
+  container.innerHTML = '';
+
+  Object.entries(d.data).forEach(([nat, items]) => {
+    if (!items || !items.length) return;
+
+    const clr = NAT_COLORS_MAP[nat] || '#888';
+    const uid = nat.replace(/\s+/g, '_');
+
+    const section = document.createElement('div');
+    section.className = 'table-card';
+    section.innerHTML = `
+      <div class="section-title" style="color:${clr}; font-size:15px; font-weight:600; margin-bottom:14px;">
+        <i class="fas fa-bowl-food"></i> ${nat} – Items Consumption Analysis
+      </div>
+
+      <!-- Table -->
+      <div style="overflow-x:auto; margin-bottom:18px;">
+        <table id="dt_${uid}" class="table table-bordered w-100">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Unit</th>
+              <th>Avg Unit Price (Rs)</th>
+              <th>Total QTY</th>
+              <th>Total Cost (Rs)</th>
+              <th>Employees</th>
+              <th>QTY / Head</th>
+              <th>Cost / Head (Rs)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(r => `
+              <tr>
+                <td>${r.item}</td>
+                <td><span class="badge-qty">${r.unit}</span></td>
+                <td class="text-end">${fmtCurrency(r.unit_price)}</td>
+                <td class="text-end">${fmtNum(r.qty, 1)}</td>
+                <td class="text-end">${fmtCurrency(r.total)}</td>
+                <td class="text-end">${fmtNum(r.employees)}</td>
+                <td class="text-end"><strong>${fmtNum(r.qty_per_head, 3)}</strong></td>
+                <td class="text-end"><strong>${fmtCurrency(r.cost_per_head)}</strong></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Dual charts: QTY/Head + Cost/Head -->
+      <div class="row-charts row-charts-eq">
+        <div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;text-align:center;">
+            <i class="fas fa-weight-hanging"></i> QTY per Head
+          </div>
+          <canvas id="chartQty_${uid}" height="220"></canvas>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;text-align:center;">
+            <i class="fas fa-coins"></i> Cost per Head (Rs)
+          </div>
+          <canvas id="chartCost_${uid}" height="220"></canvas>
+        </div>
+      </div>`;
+    container.appendChild(section);
+
+    // DataTable (no paging – usually small list)
+    $(`#dt_${uid}`).DataTable({
+      paging: false, searching: false, info: false, ordering: true,
+      order: [[7, 'desc']],
+      columnDefs: [{ targets: [2,3,4,5,6,7], className: 'dt-right' }]
+    });
+
+    const topItems = [...items].sort((a, b) => b.cost_per_head - a.cost_per_head).slice(0, 12);
+    const topQtyItems = [...items].sort((a, b) => b.qty_per_head - a.qty_per_head).slice(0, 12);
+
+    // QTY / Head horizontal bar chart
+    new Chart(document.getElementById(`chartQty_${uid}`).getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels:   topQtyItems.map(r => r.item),
+        datasets: [{
+          label:           'QTY / Head',
+          data:            topQtyItems.map(r => r.qty_per_head),
+          backgroundColor: clr + 'bb',
+          borderColor:     clr,
+          borderWidth:     2,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#a8c0d6', boxWidth: 12 } },
+          tooltip: {
+            backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+            titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+            callbacks: {
+              label: ctx => {
+                const unit = topQtyItems[ctx.dataIndex]?.unit || '';
+                return ' ' + fmtNum(ctx.parsed.x, 3) + ' ' + unit + '/head';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#7fa8c9', callback: v => fmtNum(v, 3) }, grid: { color: '#1b3a5c' } },
+          y: { ticks: { color: '#dceaf8', font: { size: 11 } }, grid: { color: '#1b3a5c' } }
+        }
+      }
+    });
+
+    // Cost / Head horizontal bar chart
+    new Chart(document.getElementById(`chartCost_${uid}`).getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels:   topItems.map(r => r.item),
+        datasets: [{
+          label:           'Cost / Head (Rs)',
+          data:            topItems.map(r => r.cost_per_head),
+          backgroundColor: clr + '88',
+          borderColor:     clr,
+          borderWidth:     2,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#a8c0d6', boxWidth: 12 } },
+          tooltip: {
+            backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+            titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+            callbacks: { label: ctx => ' ' + fmtCurrency(ctx.parsed.x) + '/head' }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#7fa8c9', callback: v => 'Rs ' + fmtNum(v) }, grid: { color: '#1b3a5c' } },
+          y: { ticks: { color: '#dceaf8', font: { size: 11 } }, grid: { color: '#1b3a5c' } }
+        }
+      }
+    });
+  });
+}
+
+// Pill filter events
+document.querySelectorAll('input[name="natPill"]').forEach(el => {
+  el.addEventListener('change', () => load());
+});
+
+initPeriodFilter(load);
+load();
+</script>
+{% endblock %}

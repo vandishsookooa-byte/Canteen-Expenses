@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Employees{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="fromPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="toPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn-apply" id="btnApply"><i class="fas fa-check"></i> Apply</button>
+  <button class="btn-reset" id="btnReset">Reset</button>
+</div>
+
+<div class="table-card">
+  <div class="table-card-title">Employee Count by Period &amp; Nationality</div>
+  <table id="empTable" class="table table-bordered w-100">
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th>Bangladeshi</th>
+        <th>Indian</th>
+        <th>Malagasy</th>
+        <th>Sri Lankan</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="chart-card">
+  <div class="chart-card-title">Employee Distribution by Period</div>
+  <canvas id="empChart" height="70"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let empChart, dtEmp;
+
+function load() {
+  fetch('/api/employees' + buildPeriodParams())
+    .then(r => r.json())
+    .then(d => {
+      renderTable(d);
+      renderChart(d);
+    });
+}
+
+function renderTable(d) {
+  const rows = d.table.map(r => [
+    r.period,
+    fmtNum(r['Bangladeshi'] || 0),
+    fmtNum(r['Indian']      || 0),
+    fmtNum(r['Malagasy']    || 0),
+    fmtNum(r['Sri Lankan']  || 0),
+    fmtNum(r['Total']       || 0)
+  ]);
+
+  if (dtEmp) {
+    dtEmp.clear().rows.add(rows).draw();
+    return;
+  }
+
+  dtEmp = $('#empTable').DataTable({
+    data: rows,
+    paging: true,
+    pageLength: 10,
+    ordering: true,
+    searching: false,
+    dom: 'Bfrtip',
+    buttons: ['csv', 'excel', 'pdf', 'print'],
+    language: { info: 'Showing _START_ to _END_ of _TOTAL_ entries' }
+  });
+}
+
+function renderChart(d) {
+  if (empChart) empChart.destroy();
+  const ctx  = document.getElementById('empChart').getContext('2d');
+  const nats = Object.keys(d.chart);
+  const opts = barOpts(v => fmtNum(v));
+  opts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtNum(ctx.parsed.y);
+  empChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.chart, d.colors, 'bar')
+    },
+    options: opts
+  });
+}
+
+initPeriodFilter(load);
+load();
+</script>
+{% endblock %}
