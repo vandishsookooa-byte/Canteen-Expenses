@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="fromPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="toPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn-apply" id="btnApply"><i class="fas fa-check"></i> Apply</button>
+  <button class="btn-reset" id="btnReset">Reset</button>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-grid" id="kpiGrid">
+  <div class="kpi-card">
+    <div class="kpi-label">Grand Total Expense</div>
+    <div class="kpi-value" id="kpiGrandTotal">—</div>
+    <div class="kpi-sub">All nationalities</div>
+  </div>
+  <div class="kpi-card" id="kpiCard-Bangladeshi">
+    <div class="kpi-label">Bangladeshi</div>
+    <div class="kpi-value" id="kpiVal-Bangladeshi">—</div>
+    <div class="kpi-sub" id="kpiCph-Bangladeshi">CPH: —</div>
+  </div>
+  <div class="kpi-card" id="kpiCard-Indian">
+    <div class="kpi-label">Indian</div>
+    <div class="kpi-value" id="kpiVal-Indian">—</div>
+    <div class="kpi-sub" id="kpiCph-Indian">CPH: —</div>
+  </div>
+  <div class="kpi-card" id="kpiCard-Malagasy">
+    <div class="kpi-label">Malagasy</div>
+    <div class="kpi-value" id="kpiVal-Malagasy">—</div>
+    <div class="kpi-sub" id="kpiCph-Malagasy">CPH: —</div>
+  </div>
+  <div class="kpi-card" id="kpiCard-SriLankan">
+    <div class="kpi-label">Sri Lankan</div>
+    <div class="kpi-value" id="kpiVal-SriLankan">—</div>
+    <div class="kpi-sub" id="kpiCph-SriLankan">CPH: —</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Total Employees (Latest)</div>
+    <div class="kpi-value" id="kpiTotalEmp">—</div>
+    <div class="kpi-sub">All nationalities</div>
+  </div>
+</div>
+
+<!-- Charts row 1: trend + donut -->
+<div class="row-charts row-charts-2">
+  <div class="chart-card">
+    <div class="chart-card-title">Expense Trend by Nationality</div>
+    <canvas id="trendChart" height="95"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-card-title">Expense Distribution</div>
+    <canvas id="donutChart" height="160"></canvas>
+  </div>
+</div>
+
+<!-- Charts row 2: employee count -->
+<div class="chart-card">
+  <div class="chart-card-title">Employee Count Trend</div>
+  <canvas id="empChart" height="70"></canvas>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let trendChart, donutChart, empChart;
+
+function load() {
+  fetch('/api/dashboard' + buildPeriodParams())
+    .then(r => r.json())
+    .then(d => {
+      renderKPI(d);
+      renderTrend(d);
+      renderDonut(d);
+      renderEmp(d);
+    });
+}
+
+function renderKPI(d) {
+  document.getElementById('kpiGrandTotal').textContent = fmtCurrency(d.grand_total);
+  const nats = ['Bangladeshi', 'Indian', 'Malagasy', 'Sri Lankan'];
+  const ids  = ['Bangladeshi', 'Indian', 'Malagasy', 'SriLankan'];
+  nats.forEach((n, i) => {
+    const v = d.totals[n];
+    const el = document.getElementById('kpiVal-' + ids[i]);
+    if (el) el.textContent = v !== undefined ? fmtCurrency(v) : 'Rs 0';
+    const cs = document.getElementById('kpiCph-' + ids[i]);
+    if (cs) cs.textContent = 'CPH: ' + fmtCurrency(d.cph[n] || 0);
+  });
+  document.getElementById('kpiTotalEmp').textContent = fmtNum(d.total_employees);
+}
+
+function renderTrend(d) {
+  if (trendChart) trendChart.destroy();
+  const ctx  = document.getElementById('trendChart').getContext('2d');
+  const nats = Object.keys(d.expense_trend);
+  const opts = lineOpts(v => 'Rs ' + fmtNum(v), v => fmtCurrency(v));
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.expense_trend, d.colors, 'line')
+    },
+    options: opts
+  });
+}
+
+function renderDonut(d) {
+  if (donutChart) donutChart.destroy();
+  const ctx  = document.getElementById('donutChart').getContext('2d');
+  const nats = Object.keys(d.totals);
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels:   nats,
+      datasets: [{
+        data:            nats.map(n => d.totals[n]),
+        backgroundColor: nats.map(n => d.colors[n] + 'cc'),
+        borderColor:     nats.map(n => d.colors[n]),
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#a8c0d6', boxWidth: 12, padding: 14 }
+        },
+        tooltip: {
+          backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+          titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+          callbacks: {
+            label: ctx => ' ' + ctx.label + ': ' + fmtCurrency(ctx.parsed)
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderEmp(d) {
+  if (empChart) empChart.destroy();
+  const ctx  = document.getElementById('empChart').getContext('2d');
+  const nats = Object.keys(d.emp_trend);
+  const opts = barOpts(v => fmtNum(v));
+  opts.scales.y.ticks.callback = v => fmtNum(v);
+  opts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtNum(ctx.parsed.y);
+  empChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.emp_trend, d.colors, 'bar')
+    },
+    options: opts
+  });
+}
+
+initPeriodFilter(load);
+load();
+</script>
+{% endblock %}
