@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Trend Analysis{% endblock %}
+{% block page_title %}Trend Analysis{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="fromPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="toPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn-apply" id="btnApply"><i class="fas fa-check"></i> Apply</button>
+  <button class="btn-reset" id="btnReset">Reset</button>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs" id="trendTabs">
+  <li class="nav-item">
+    <a class="nav-link active" href="#" data-tab="fortnightly">
+      <i class="fas fa-calendar-days"></i> Fortnightly Trend
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#" data-tab="monthly">
+      <i class="fas fa-calendar-month"></i> Monthly Trend
+    </a>
+  </li>
+</ul>
+
+<!-- Fortnightly tab -->
+<div id="tab-fortnightly">
+  <div class="chart-card">
+    <div class="chart-card-title">
+      Fortnightly Expense by Nationality
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:8px;">(chronological order)</span>
+    </div>
+    <canvas id="ftExpChart" height="90"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-card-title">Cost Per Head – Fortnightly</div>
+    <canvas id="ftCphChart" height="90"></canvas>
+  </div>
+</div>
+
+<!-- Monthly tab -->
+<div id="tab-monthly" style="display:none;">
+  <div class="chart-card">
+    <div class="chart-card-title">Monthly Expense by Nationality</div>
+    <canvas id="moExpChart" height="90"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-card-title">Cost Per Head – Monthly</div>
+    <canvas id="moCphChart" height="90"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let charts = {};
+
+function destroyAll() {
+  Object.values(charts).forEach(c => c && c.destroy());
+  charts = {};
+}
+
+function load() {
+  fetch('/api/trend' + buildPeriodParams())
+    .then(r => r.json())
+    .then(d => {
+      destroyAll();
+      renderFortnightly(d);
+      renderMonthly(d);
+    });
+}
+
+function renderFortnightly(d) {
+  const ft = d.fortnightly;
+  const nats = Object.keys(ft.expense);
+
+  const expOpts = lineOpts(v => 'Rs ' + fmtNum(v), v => fmtCurrency(v));
+  charts.ftExp = new Chart(document.getElementById('ftExpChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels:   ft.periods,
+      datasets: makeDatasets(nats, ft.expense, d.colors, 'line')
+    },
+    options: expOpts
+  });
+
+  const cphOpts = lineOpts(v => 'Rs ' + fmtNum(v, 0), v => fmtCurrency(v));
+  charts.ftCph = new Chart(document.getElementById('ftCphChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels:   ft.periods,
+      datasets: makeDatasets(nats, ft.cph, d.colors, 'line')
+    },
+    options: cphOpts
+  });
+}
+
+function renderMonthly(d) {
+  const mo = d.monthly;
+  const nats = Object.keys(mo.expense);
+
+  const expOpts = barOpts(v => fmtCurrency(v));
+  expOpts.scales.y.ticks.callback = v => 'Rs ' + fmtNum(v);
+  expOpts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtCurrency(ctx.parsed.y);
+  charts.moExp = new Chart(document.getElementById('moExpChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels:   mo.periods,
+      datasets: makeDatasets(nats, mo.expense, d.colors, 'bar')
+    },
+    options: expOpts
+  });
+
+  const cphOpts = lineOpts(v => 'Rs ' + fmtNum(v, 0), v => fmtCurrency(v));
+  charts.moCph = new Chart(document.getElementById('moCphChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels:   mo.periods,
+      datasets: makeDatasets(nats, mo.cph, d.colors, 'line')
+    },
+    options: cphOpts
+  });
+}
+
+// Tab switching
+document.querySelectorAll('#trendTabs .nav-link').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('#trendTabs .nav-link').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const tab = el.dataset.tab;
+    document.getElementById('tab-fortnightly').style.display = tab === 'fortnightly' ? '' : 'none';
+    document.getElementById('tab-monthly').style.display     = tab === 'monthly'     ? '' : 'none';
+  });
+});
+
+initPeriodFilter(load);
+load();
+</script>
+{% endblock %}

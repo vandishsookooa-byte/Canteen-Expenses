@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="fromPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="toPeriod" class="filter-select">
+    <option value="">All Periods</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn-apply" id="btnApply"><i class="fas fa-check"></i> Apply</button>
+  <button class="btn-reset" id="btnReset">Reset</button>
+</div>
+
+<!-- Report Tabs -->
+<ul class="nav nav-tabs" id="reportTabs">
+  <li class="nav-item">
+    <a class="nav-link active" href="#" data-tab="expense">
+      <i class="fas fa-receipt"></i> Expense Summary
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#" data-tab="employees">
+      <i class="fas fa-users"></i> Employee Count
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#" data-tab="cph">
+      <i class="fas fa-coins"></i> Cost Per Head
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#" data-tab="itemhead">
+      <i class="fas fa-bowl-food"></i> Item / Head
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#" data-tab="overview">
+      <i class="fas fa-chart-area"></i> Charts Overview
+    </a>
+  </li>
+</ul>
+
+<!-- ── TAB: Expense Summary ── -->
+<div id="tab-expense">
+  <div class="chart-card">
+    <div class="chart-card-title">Expense Summary by Period &amp; Nationality</div>
+    <canvas id="expChart" height="90"></canvas>
+  </div>
+  <div class="table-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="table-card-title mb-0">Expense Summary by Period &amp; Nationality</div>
+      <div id="expBtns"></div>
+    </div>
+    <table id="expTable" class="table table-bordered w-100">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Bangladeshi</th>
+          <th>Indian</th>
+          <th>Malagasy</th>
+          <th>Sri Lankan</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot>
+        <tr id="expGrandRow">
+          <td><strong>GRAND TOTAL</strong></td>
+          <td id="gt-bd"></td>
+          <td id="gt-in"></td>
+          <td id="gt-ml"></td>
+          <td id="gt-sl"></td>
+          <td id="gt-all"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- ── TAB: Employee Count ── -->
+<div id="tab-employees" style="display:none;">
+  <div class="chart-card">
+    <div class="chart-card-title">Employee Count by Period &amp; Nationality</div>
+    <canvas id="rEmpChart" height="90"></canvas>
+  </div>
+  <div class="table-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="table-card-title mb-0">Employee Count by Period &amp; Nationality</div>
+      <div id="empBtns"></div>
+    </div>
+    <table id="empTable" class="table table-bordered w-100">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Bangladeshi</th>
+          <th>Indian</th>
+          <th>Malagasy</th>
+          <th>Sri Lankan</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── TAB: Cost Per Head ── -->
+<div id="tab-cph" style="display:none;">
+  <div class="chart-card">
+    <div class="chart-card-title">Cost Per Head (Rs) by Period &amp; Nationality</div>
+    <canvas id="cphChart" height="90"></canvas>
+  </div>
+  <div class="table-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="table-card-title mb-0">Cost Per Head (Rs) – Detailed</div>
+      <div id="cphBtns"></div>
+    </div>
+    <table id="cphTable" class="table table-bordered w-100">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Bangladeshi</th>
+          <th>Indian</th>
+          <th>Malagasy</th>
+          <th>Sri Lankan</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── TAB: Item / Head ── -->
+<div id="tab-itemhead" style="display:none;">
+  <!-- Summary bar: cost/head by item, grouped by nationality -->
+  <div class="chart-card">
+    <div class="chart-card-title">Cost / Head (Rs) per Item – All Nationalities</div>
+    <canvas id="ihSummaryChart" height="100"></canvas>
+  </div>
+
+  <!-- Per-nationality item/head breakdown tables -->
+  <div id="ihNatSections"></div>
+</div>
+
+<!-- ── TAB: Charts Overview ── -->
+<div id="tab-overview" style="display:none;">
+  <div class="row-charts row-charts-eq">
+    <div class="chart-card">
+      <div class="chart-card-title">Expense Distribution (Donut)</div>
+      <canvas id="ovDonut" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">CPH Comparison (Bar)</div>
+      <canvas id="ovCphBar" height="200"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-card-title">Total Expense Trend – All Nationalities (Line)</div>
+    <canvas id="ovTotalLine" height="80"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-card-title">Employee Count Trend (Bar)</div>
+    <canvas id="ovEmpBar" height="80"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const charts = {};
+const dts    = {};
+
+// Cached comparison data for Item/Head tab
+let _compData = null;
+
+// ── Tab switching ──────────────────────────────────────────────────────────────
+document.querySelectorAll('#reportTabs .nav-link').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('#reportTabs .nav-link').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const tab = el.dataset.tab;
+    ['expense','employees','cph','itemhead','overview'].forEach(t => {
+      document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+    });
+    // Lazy-load item/head tab when first opened
+    if (tab === 'itemhead' && _compData) {
+      renderItemHead(_compData);
+    }
+  });
+});
+
+// ── Data load ──────────────────────────────────────────────────────────────────
+function load() {
+  const params = buildPeriodParams();
+  Promise.all([
+    fetch('/api/reports' + params).then(r => r.json()),
+    fetch('/api/comparison' + params).then(r => r.json()),
+  ]).then(([rep, comp]) => {
+    renderExpense(rep);
+    renderEmployees(rep);
+    renderCph(rep);
+    renderOverview(rep);
+    _compData = comp;
+    // Render item/head tab if it is currently visible
+    if (document.getElementById('tab-itemhead').style.display !== 'none') {
+      renderItemHead(comp);
+    }
+  });
+}
+
+// ── Expense Summary ────────────────────────────────────────────────────────────
+function renderExpense(d) {
+  if (charts.exp) charts.exp.destroy();
+  const nats = Object.keys(d.expense.chart);
+  const opts = barOpts(v => fmtCurrency(v));
+  opts.scales.y.ticks.callback = v => 'Rs ' + fmtNum(v);
+  opts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtCurrency(ctx.parsed.y);
+  charts.exp = new Chart(document.getElementById('expChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.expense.chart, d.colors, 'bar')
+    },
+    options: opts
+  });
+
+  const rows = d.expense.rows.map(r => [
+    r.period,
+    fmtCurrency(r['Bangladeshi'] || 0),
+    fmtCurrency(r['Indian']      || 0),
+    fmtCurrency(r['Malagasy']    || 0),
+    fmtCurrency(r['Sri Lankan']  || 0),
+    fmtCurrency(r['Total']       || 0),
+  ]);
+
+  if (dts.exp) {
+    dts.exp.clear().rows.add(rows).draw();
+  } else {
+    dts.exp = $('#expTable').DataTable({
+      data: rows, paging: true, pageLength: 10,
+      ordering: true, searching: false,
+      dom: 'Bfrtip',
+      buttons: [
+        { extend: 'csv',   container: '#expBtns' },
+        { extend: 'excel', container: '#expBtns' },
+        { extend: 'pdf',   container: '#expBtns' },
+        { extend: 'print', container: '#expBtns' },
+      ],
+      columnDefs: [{ targets: [1,2,3,4,5], className: 'dt-right' }],
+      language: { info: 'Showing _START_ to _END_ of _TOTAL_ entries' }
+    });
+    $('#expBtns').html($('.dt-buttons'));
+  }
+
+  const gt = d.expense.grand_total;
+  document.getElementById('gt-bd').textContent  = fmtCurrency(gt['Bangladeshi'] || 0);
+  document.getElementById('gt-in').textContent  = fmtCurrency(gt['Indian']      || 0);
+  document.getElementById('gt-ml').textContent  = fmtCurrency(gt['Malagasy']    || 0);
+  document.getElementById('gt-sl').textContent  = fmtCurrency(gt['Sri Lankan']  || 0);
+  document.getElementById('gt-all').textContent = fmtCurrency(d.expense.grand_all || 0);
+}
+
+// ── Employee Count ─────────────────────────────────────────────────────────────
+function renderEmployees(d) {
+  if (charts.rEmp) charts.rEmp.destroy();
+  const nats = Object.keys(d.employees.chart);
+  const opts = barOpts(v => fmtNum(v));
+  opts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtNum(ctx.parsed.y);
+  charts.rEmp = new Chart(document.getElementById('rEmpChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.employees.chart, d.colors, 'bar')
+    },
+    options: opts
+  });
+
+  const rows = d.employees.rows.map(r => [
+    r.period,
+    fmtNum(r['Bangladeshi'] || 0),
+    fmtNum(r['Indian']      || 0),
+    fmtNum(r['Malagasy']    || 0),
+    fmtNum(r['Sri Lankan']  || 0),
+    fmtNum(r['Total']       || 0),
+  ]);
+
+  if (dts.emp) {
+    dts.emp.clear().rows.add(rows).draw();
+  } else {
+    dts.emp = $('#empTable').DataTable({
+      data: rows, paging: true, pageLength: 10,
+      ordering: true, searching: false,
+      dom: 'Bfrtip',
+      buttons: [
+        { extend: 'csv',   container: '#empBtns' },
+        { extend: 'excel', container: '#empBtns' },
+        { extend: 'pdf',   container: '#empBtns' },
+        { extend: 'print', container: '#empBtns' },
+      ],
+      columnDefs: [{ targets: [1,2,3,4,5], className: 'dt-right' }],
+    });
+    $('#empBtns').html($('.dt-buttons').last());
+  }
+}
+
+// ── CPH ────────────────────────────────────────────────────────────────────────
+function renderCph(d) {
+  if (charts.cph) charts.cph.destroy();
+  const nats = Object.keys(d.cph.chart);
+  const opts = lineOpts(v => 'Rs ' + fmtNum(v, 0), v => fmtCurrency(v));
+  charts.cph = new Chart(document.getElementById('cphChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(nats, d.cph.chart, d.colors, 'line')
+    },
+    options: opts
+  });
+
+  const rows = d.cph.rows.map(r => [
+    r.period,
+    fmtCurrency(r['Bangladeshi'] || 0),
+    fmtCurrency(r['Indian']      || 0),
+    fmtCurrency(r['Malagasy']    || 0),
+    fmtCurrency(r['Sri Lankan']  || 0),
+  ]);
+
+  if (dts.cph) {
+    dts.cph.clear().rows.add(rows).draw();
+  } else {
+    dts.cph = $('#cphTable').DataTable({
+      data: rows, paging: true, pageLength: 10,
+      ordering: true, searching: false,
+      dom: 'Bfrtip',
+      buttons: [
+        { extend: 'csv',   container: '#cphBtns' },
+        { extend: 'excel', container: '#cphBtns' },
+        { extend: 'pdf',   container: '#cphBtns' },
+        { extend: 'print', container: '#cphBtns' },
+      ],
+      columnDefs: [{ targets: [1,2,3,4], className: 'dt-right' }],
+    });
+    $('#cphBtns').html($('.dt-buttons').last());
+  }
+}
+
+// ── Item / Head ────────────────────────────────────────────────────────────────
+const NAT_COLORS_MAP = {
+  'Bangladeshi': '#4472ca',
+  'Indian':      '#d4a017',
+  'Malagasy':    '#70ad47',
+  'Sri Lankan':  '#c55a11'
+};
+
+function renderItemHead(d) {
+  // Destroy previous nat-section charts and tables
+  const container = document.getElementById('ihNatSections');
+  container.querySelectorAll('table').forEach(t => {
+    if ($.fn.DataTable.isDataTable(t)) $(t).DataTable().destroy();
+  });
+  container.querySelectorAll('canvas').forEach(c => {
+    const ch = Chart.getChart(c); if (ch) ch.destroy();
+  });
+  container.innerHTML = '';
+
+  // ── Summary grouped bar: cost/head per item across nationalities ──
+  if (charts.ihSummary) charts.ihSummary.destroy();
+  const allNats = Object.keys(d.data);
+  const itemSet = new Set();
+  allNats.forEach(n => {
+    const sorted = [...(d.data[n] || [])].sort((a, b) => b.cost_per_head - a.cost_per_head);
+    sorted.slice(0, 10).forEach(r => itemSet.add(r.item));
+  });
+  const summaryItems = Array.from(itemSet);
+
+  charts.ihSummary = new Chart(document.getElementById('ihSummaryChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: summaryItems,
+      datasets: allNats.map(nat => {
+        const clr = NAT_COLORS_MAP[nat] || '#888';
+        const cMap = {};
+        (d.data[nat] || []).forEach(r => { cMap[r.item] = r.cost_per_head; });
+        return {
+          label:           nat,
+          data:            summaryItems.map(it => cMap[it] || 0),
+          backgroundColor: clr + 'bb',
+          borderColor:     clr,
+          borderWidth:     2,
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#a8c0d6', boxWidth: 12, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+          titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+          callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtCurrency(ctx.parsed.y) + '/head' }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7fa8c9', maxRotation: 35 }, grid: { color: '#1b3a5c' } },
+        y: { ticks: { color: '#7fa8c9', callback: v => 'Rs ' + fmtNum(v) }, grid: { color: '#1b3a5c' },
+             title: { display: true, text: 'Cost / Head (Rs)', color: '#7fa8c9', font: { size: 11 } } }
+      }
+    }
+  });
+
+  // ── Per-nationality item/head tables with export ──
+  allNats.forEach(nat => {
+    const items = d.data[nat] || [];
+    if (!items.length) return;
+    const clr = NAT_COLORS_MAP[nat] || '#888';
+    const uid = 'ih_' + nat.replace(/\s+/g, '_');
+
+    const sec = document.createElement('div');
+    sec.className = 'table-card';
+    sec.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0" style="color:${clr}; font-size:14px; font-weight:600;">
+          <i class="fas fa-bowl-food"></i> ${nat} – Item / Head Breakdown
+        </div>
+        <div id="btn_${uid}"></div>
+      </div>
+      <table id="dt_${uid}" class="table table-bordered w-100">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Unit</th>
+            <th>Avg Unit Price (Rs)</th>
+            <th>Total QTY</th>
+            <th>Total Cost (Rs)</th>
+            <th>Employees</th>
+            <th>QTY / Head</th>
+            <th>Cost / Head (Rs)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(r => `
+            <tr>
+              <td>${r.item}</td>
+              <td>${r.unit}</td>
+              <td class="text-end">${fmtCurrency(r.unit_price)}</td>
+              <td class="text-end">${fmtNum(r.qty, 1)}</td>
+              <td class="text-end">${fmtCurrency(r.total)}</td>
+              <td class="text-end">${fmtNum(r.employees)}</td>
+              <td class="text-end"><strong>${fmtNum(r.qty_per_head, 3)}</strong></td>
+              <td class="text-end"><strong>${fmtCurrency(r.cost_per_head)}</strong></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+    container.appendChild(sec);
+
+    $(`#dt_${uid}`).DataTable({
+      paging: false, searching: false, info: false, ordering: true,
+      order: [[7, 'desc']],
+      dom: 'Bfrtip',
+      buttons: [
+        { extend: 'csv',   container: '#btn_' + uid },
+        { extend: 'excel', container: '#btn_' + uid },
+        { extend: 'print', container: '#btn_' + uid },
+      ],
+      columnDefs: [{ targets: [2,3,4,5,6,7], className: 'dt-right' }],
+    });
+    $(`#btn_${uid}`).html($('.dt-buttons').last());
+  });
+}
+
+// ── Charts Overview ────────────────────────────────────────────────────────────
+function renderOverview(d) {
+  if (charts.ovDonut) charts.ovDonut.destroy();
+  const nats = d.nationalities;
+  charts.ovDonut = new Chart(document.getElementById('ovDonut').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels:   nats,
+      datasets: [{
+        data:            nats.map(n => d.expense.grand_total[n] || 0),
+        backgroundColor: nats.map(n => d.colors[n] + 'cc'),
+        borderColor:     nats.map(n => d.colors[n]),
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#a8c0d6', boxWidth: 12, padding: 12 } },
+        tooltip: {
+          backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+          titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+          callbacks: { label: ctx => ' ' + ctx.label + ': ' + fmtCurrency(ctx.parsed) }
+        }
+      }
+    }
+  });
+
+  if (charts.ovCphBar) charts.ovCphBar.destroy();
+  const avgCph = nats.map(n => {
+    const vals = d.cph.chart[n] || [];
+    const nonZ = vals.filter(v => v > 0);
+    return nonZ.length ? nonZ.reduce((a, b) => a + b, 0) / nonZ.length : 0;
+  });
+  charts.ovCphBar = new Chart(document.getElementById('ovCphBar').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: nats,
+      datasets: [{
+        label:           'Avg CPH (Rs)',
+        data:            avgCph,
+        backgroundColor: nats.map(n => d.colors[n] + 'bb'),
+        borderColor:     nats.map(n => d.colors[n]),
+        borderWidth:     2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#a8c0d6', boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#0e2035', borderColor: '#1b3a5c', borderWidth: 1,
+          titleColor: '#4fc3f7', bodyColor: '#dceaf8',
+          callbacks: { label: ctx => ' ' + fmtCurrency(ctx.parsed.y) + ' / head' }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7fa8c9' }, grid: { color: '#1b3a5c' } },
+        y: { ticks: { color: '#7fa8c9', callback: v => 'Rs ' + fmtNum(v) }, grid: { color: '#1b3a5c' } }
+      }
+    }
+  });
+
+  if (charts.ovTotalLine) charts.ovTotalLine.destroy();
+  const totalByPeriod = d.periods.map((_, i) =>
+    nats.reduce((s, n) => s + (d.expense.chart[n]?.[i] || 0), 0)
+  );
+  const opts = lineOpts(v => 'Rs ' + fmtNum(v), v => fmtCurrency(v));
+  charts.ovTotalLine = new Chart(document.getElementById('ovTotalLine').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: d.periods,
+      datasets: [{
+        label:               'Total Expense',
+        data:                totalByPeriod,
+        borderColor:         '#4fc3f7',
+        backgroundColor:     '#4fc3f722',
+        pointBackgroundColor:'#4fc3f7',
+        tension:             0.35,
+        fill:                true,
+        borderWidth:         2,
+      }]
+    },
+    options: opts
+  });
+
+  if (charts.ovEmpBar) charts.ovEmpBar.destroy();
+  const empNats = Object.keys(d.employees.chart);
+  const empOpts = barOpts(v => fmtNum(v));
+  empOpts.plugins.tooltip.callbacks.label = ctx => ' ' + ctx.dataset.label + ': ' + fmtNum(ctx.parsed.y);
+  charts.ovEmpBar = new Chart(document.getElementById('ovEmpBar').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels:   d.periods,
+      datasets: makeDatasets(empNats, d.employees.chart, d.colors, 'bar')
+    },
+    options: empOpts
+  });
+}
+
+initPeriodFilter(load);
+load();
+</script>
+{% endblock %}

@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.xlsx
+*.xls
+.DS_Store
+venv/
+.venv/
+instance/
