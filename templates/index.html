@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canteen Expenses Dashboard</title>
+
+  <!-- Chart.js v4 (CDN, no external data sent) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ================================================================
+       SIDEBAR
+       ================================================================ -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+      <div class="brand-icon">🍽️</div>
+      <span class="brand-name">
+        Canteen Expenses
+        <span class="badge-demo" style="display:none">Demo</span>
+      </span>
+      <span class="brand-sub">Management Dashboard</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" data-section="overview" href="#">
+        <span class="nav-icon">📊</span> Overview
+      </a>
+      <a class="nav-item" data-section="employees" href="#">
+        <span class="nav-icon">👥</span> Employees
+      </a>
+      <a class="nav-item" data-section="comparison" href="#">
+        <span class="nav-icon">📈</span> Comparison
+      </a>
+      <a class="nav-item" data-section="reports" href="#">
+        <span class="nav-icon">📋</span> Reports
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      &copy; 2024 Canteen Dashboard
+    </div>
+  </aside>
+
+  <!-- ================================================================
+       MAIN CONTENT
+       ================================================================ -->
+  <div class="main-content">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topbar-title">Overview</div>
+        <div class="topbar-sub">Canteen Expenditure Management</div>
+      </div>
+    </div>
+
+    <div class="content-area">
+
+      <!-- ============================================================
+           SECTION: Overview
+           ============================================================ -->
+      <section id="overview" class="section active">
+
+        <div class="page-header">
+          <h2>Overview</h2>
+          <p>Summary of canteen expenditure and headcount across all nationalities.</p>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stat-grid">
+          <div class="stat-card accent">
+            <div class="stat-label">Total Spend</div>
+            <div class="stat-value" id="stat-total-spend">
+              <div class="spinner-wrap"><div class="spinner"></div></div>
+            </div>
+            <div class="stat-sub">all nationalities</div>
+          </div>
+          <div class="stat-card success">
+            <div class="stat-label">Employee Records</div>
+            <div class="stat-value" id="stat-employees">—</div>
+            <div class="stat-sub">cumulative headcount</div>
+          </div>
+          <div class="stat-card warning">
+            <div class="stat-label">Periods Tracked</div>
+            <div class="stat-value" id="stat-periods">—</div>
+            <div class="stat-sub">monthly records</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Nationalities</div>
+            <div class="stat-value" id="stat-nationalities">4</div>
+            <div class="stat-sub">BD · IN · ML · SL</div>
+          </div>
+        </div>
+
+        <!-- Per-nationality spend cards -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label nat-color-bd">● Bangladeshi</div>
+            <div class="stat-value" id="stat-bd">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label nat-color-in">● Indian</div>
+            <div class="stat-value" id="stat-in">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label nat-color-ml">● Malagasy</div>
+            <div class="stat-value" id="stat-ml">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label nat-color-sl">● Srilankan</div>
+            <div class="stat-value" id="stat-sl">—</div>
+          </div>
+        </div>
+
+        <!-- Overview donut chart -->
+        <div class="overview-charts">
+          <div class="card mb-card">
+            <div class="card-header"><h4>Spend by Nationality</h4></div>
+            <div class="card-body">
+              <div class="chart-wrapper">
+                <canvas id="overviewChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section><!-- /overview -->
+
+
+      <!-- ============================================================
+           SECTION: Employees
+           ============================================================ -->
+      <section id="employees" class="section">
+
+        <div class="page-header">
+          <h2>Employees</h2>
+          <p>Employee count by period and nationality.</p>
+        </div>
+
+        <!-- Employee count table -->
+        <div class="card mb-card">
+          <div class="card-header">
+            <h4>Employee Count by Period &amp; Nationality</h4>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-scroll">
+              <table class="data-table">
+                <colgroup>
+                  <col style="width:110px">
+                  <col style="width:130px">
+                  <col style="width:110px">
+                  <col style="width:120px">
+                  <col style="width:120px">
+                  <col style="width:100px">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="col-text">Period</th>
+                    <th class="col-num">Bangladeshi</th>
+                    <th class="col-num">Indian</th>
+                    <th class="col-num">Malagasy</th>
+                    <th class="col-num">Srilankan</th>
+                    <th class="col-num">Total</th>
+                  </tr>
+                </thead>
+                <tbody id="employees-table-body">
+                  <tr>
+                    <td colspan="6" class="tbl-placeholder">
+                      <div class="spinner-wrap"><div class="spinner"></div><span>Loading…</span></div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Employee chart -->
+        <div class="card mb-card">
+          <div class="card-header"><h4>Headcount Trend by Nationality</h4></div>
+          <div class="card-body">
+            <div class="chart-wrapper" id="employees-chart-area">
+              <div class="spinner-wrap"><div class="spinner"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </section><!-- /employees -->
+
+
+      <!-- ============================================================
+           SECTION: Comparison
+           ============================================================ -->
+      <section id="comparison" class="section">
+
+        <div class="page-header">
+          <h2>Detailed Comparison</h2>
+          <p>Expenditure comparison across nationalities by period.</p>
+        </div>
+
+        <!-- Comparison table -->
+        <div class="card mb-card">
+          <div class="card-header">
+            <h4>Expense Comparison by Period</h4>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-scroll">
+              <table class="data-table">
+                <colgroup>
+                  <col style="width:110px">
+                  <col style="width:150px">
+                  <col style="width:140px">
+                  <col style="width:140px">
+                  <col style="width:140px">
+                  <col style="width:150px">
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="col-text">Period</th>
+                    <th class="col-num">Bangladeshi</th>
+                    <th class="col-num">Indian</th>
+                    <th class="col-num">Malagasy</th>
+                    <th class="col-num">Srilankan</th>
+                    <th class="col-num">Grand Total</th>
+                  </tr>
+                </thead>
+                <tbody id="comparison-table-body">
+                  <tr>
+                    <td colspan="6" class="tbl-placeholder">
+                      <div class="spinner-wrap"><div class="spinner"></div><span>Loading…</span></div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison chart -->
+        <div class="card mb-card">
+          <div class="card-header"><h4>Expense Trend by Nationality</h4></div>
+          <div class="card-body">
+            <div class="chart-wrapper" id="comparison-chart-area">
+              <div class="spinner-wrap"><div class="spinner"></div></div>
+            </div>
+          </div>
+        </div>
+
+      </section><!-- /comparison -->
+
+
+      <!-- ============================================================
+           SECTION: Reports  (inline display + export)
+           ============================================================ -->
+      <section id="reports" class="section">
+
+        <div class="page-header">
+          <h2>Reports</h2>
+          <p>Full report details displayed below. Use filters to narrow the data, then export.</p>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar mb-card">
+          <div class="filter-group">
+            <label for="report-period-filter">Period contains</label>
+            <input id="report-period-filter" type="text" placeholder="e.g. Jan-24" />
+          </div>
+          <div class="filter-group">
+            <label for="report-nat-filter">Nationality</label>
+            <select id="report-nat-filter">
+              <option value="">All Nationalities</option>
+              <option value="Bangladeshi">Bangladeshi</option>
+              <option value="Indian">Indian</option>
+              <option value="Malagasy">Malagasy</option>
+              <option value="Srilankan">Srilankan</option>
+            </select>
+          </div>
+          <div class="btn-group" style="align-self:flex-end">
+            <button class="btn btn-primary" id="apply-filter-btn">
+              🔍 Apply Filter
+            </button>
+            <button class="btn btn-outline" id="clear-filter-btn">
+              ✕ Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div id="reports-summary-area" class="mb-card">
+          <div class="spinner-wrap"><div class="spinner"></div></div>
+        </div>
+
+        <!-- Export panel -->
+        <div class="export-panel mb-card">
+          <span class="export-label">📥 Export current report data:</span>
+          <div class="btn-group">
+            <button class="btn btn-success" id="btn-csv">
+              ⬇ Download CSV
+            </button>
+            <button class="btn btn-warning" id="btn-xlsx">
+              ⬇ Download Excel
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline report tables -->
+        <div id="reports-content-area">
+          <div class="spinner-wrap"><div class="spinner"></div></div>
+        </div>
+
+      </section><!-- /reports -->
+
+    </div><!-- /content-area -->
+  </div><!-- /main-content -->
+</div><!-- /app-wrapper -->
+
+<!-- Custom JS (after body so DOM is ready) -->
+<script src="/static/js/app.js"></script>
+
+</body>
+</html>
