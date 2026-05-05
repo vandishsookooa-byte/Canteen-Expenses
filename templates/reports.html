@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title_suffix %} – Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="sel-from"></select>
+  <label>To Period:</label>
+  <select id="sel-to"></select>
+  <button class="btn-apply" onclick="loadReports()">Apply</button>
+  <button class="btn-reset" onclick="resetFilter()">Reset</button>
+</div>
+
+<!-- Report tabs -->
+<ul class="nav nav-tabs" id="report-tabs">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-expense">
+      <i class="bi bi-cash-stack me-1"></i>Expense Summary
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-emp">
+      <i class="bi bi-people-fill me-1"></i>Employee Count
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cph">
+      <i class="bi bi-person-badge-fill me-1"></i>Cost Per Head
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-charts">
+      <i class="bi bi-bar-chart-line-fill me-1"></i>Charts Overview
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- ========== Tab 1: Expense Summary ========== -->
+  <div class="tab-pane fade show active" id="tab-expense">
+    <div class="section-card">
+      <div class="section-title">Expense Summary by Period &amp; Nationality</div>
+      <div class="chart-container mb-4" style="height:260px;">
+        <canvas id="chart-rpt-expense"></canvas>
+      </div>
+      <div class="table-responsive">
+        <table id="rpt-expense-table" class="table dataTable" style="width:100%">
+          <thead>
+            <tr>
+              <th style="width:28%">Period</th>
+              <th style="width:14%">Bangladeshi</th>
+              <th style="width:14%">Indian</th>
+              <th style="width:14%">Malagasy</th>
+              <th style="width:14%">Sri Lankan</th>
+              <th style="width:16%">Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr id="expense-totals-row" style="font-weight:bold; color:#5aa3ff;">
+              <td>GRAND TOTAL</td>
+              <td class="dt-center" id="ft-bd">—</td>
+              <td class="dt-center" id="ft-in">—</td>
+              <td class="dt-center" id="ft-ml">—</td>
+              <td class="dt-center" id="ft-sl">—</td>
+              <td class="dt-center" id="ft-tot">—</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Tab 2: Employee Count ========== -->
+  <div class="tab-pane fade" id="tab-emp">
+    <div class="section-card">
+      <div class="section-title">Employee Count by Period &amp; Nationality</div>
+      <div class="chart-container mb-4" style="height:260px;">
+        <canvas id="chart-rpt-emp"></canvas>
+      </div>
+      <div class="table-responsive">
+        <table id="rpt-emp-table" class="table dataTable" style="width:100%">
+          <thead>
+            <tr>
+              <th style="width:28%">Period</th>
+              <th style="width:14%">Bangladeshi</th>
+              <th style="width:14%">Indian</th>
+              <th style="width:14%">Malagasy</th>
+              <th style="width:14%">Sri Lankan</th>
+              <th style="width:16%">Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Tab 3: Cost Per Head ========== -->
+  <div class="tab-pane fade" id="tab-cph">
+    <div class="section-card">
+      <div class="section-title">Cost Per Head by Period &amp; Nationality</div>
+      <div class="chart-container mb-4" style="height:260px;">
+        <canvas id="chart-rpt-cph"></canvas>
+      </div>
+      <div class="table-responsive">
+        <table id="rpt-cph-table" class="table dataTable" style="width:100%">
+          <thead>
+            <tr>
+              <th style="width:28%">Period</th>
+              <th style="width:14%">Bangladeshi</th>
+              <th style="width:14%">Indian</th>
+              <th style="width:14%">Malagasy</th>
+              <th style="width:14%">Sri Lankan</th>
+              <th style="width:16%">Average</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Tab 4: Charts Overview ========== -->
+  <div class="tab-pane fade" id="tab-charts">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">Total Expenses by Nationality</div>
+          <div class="chart-container" style="height:260px;">
+            <canvas id="chart-rpt-donut"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="section-card">
+          <div class="section-title">Cost Per Head Comparison</div>
+          <div class="chart-container" style="height:260px;">
+            <canvas id="chart-rpt-cph-bar"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-title">Expense Trend Over Time</div>
+          <div class="chart-container" style="height:280px;">
+            <canvas id="chart-rpt-trend"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Export all charts as PDF -->
+    <div class="mt-3">
+      <button class="btn-apply" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i>Print / Save as PDF
+      </button>
+    </div>
+  </div>
+
+</div><!-- /tab-content -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+let reportData = null;
+
+populatePeriodSelects('sel-from', 'sel-to', () => loadReports());
+
+function resetFilter() {
+  document.getElementById('sel-from').value = '';
+  document.getElementById('sel-to').value   = '';
+  loadReports();
+}
+
+function loadReports() {
+  const qs = getFilterParams('sel-from', 'sel-to');
+  fetch('/api/reports' + qs)
+    .then(r => r.json())
+    .then(data => {
+      reportData = data;
+      renderExpenseReport(data);
+      renderEmpReport(data);
+      renderCphReport(data);
+      renderChartsOverview(data);
+    });
+}
+
+/* ---- Expense summary ---- */
+function renderExpenseReport(data) {
+  const cols = [
+    { data: 'period',      title: 'Period',       width: '28%' },
+    { data: 'bangladeshi', title: 'Bangladeshi',   className: 'dt-center', width: '14%' },
+    { data: 'indian',      title: 'Indian',        className: 'dt-center', width: '14%' },
+    { data: 'malagasy',    title: 'Malagasy',      className: 'dt-center', width: '14%' },
+    { data: 'srilankan',   title: 'Sri Lankan',    className: 'dt-center', width: '14%' },
+    { data: 'total',       title: 'Total',         className: 'dt-center', width: '16%',
+      render: v => '<strong>' + v + '</strong>' },
+  ];
+
+  makeDataTable('rpt-expense-table', cols, 'Expense Summary Report', { data: data.expense_rows, order: [] });
+
+  // Grand total footer
+  document.getElementById('ft-bd').textContent  = data.totals.bangladeshi;
+  document.getElementById('ft-in').textContent  = data.totals.indian;
+  document.getElementById('ft-ml').textContent  = data.totals.malagasy;
+  document.getElementById('ft-sl').textContent  = data.totals.srilankan;
+  document.getElementById('ft-tot').textContent = data.totals.total;
+
+  // Chart
+  makeBarChart('chart-rpt-expense', data.periods,
+    NATIONALITIES.map(nat => ({
+      label: NAT_DISPLAY[nat], data: data.expenses_raw[nat],
+      color: NAT_COLORS[nat].bg, border: NAT_COLORS[nat].border,
+    })), { currency: true }
+  );
+}
+
+/* ---- Employee count ---- */
+function renderEmpReport(data) {
+  const cols = [
+    { data: 'period',      title: 'Period',       width: '28%' },
+    { data: 'bangladeshi', title: 'Bangladeshi',   className: 'dt-center', width: '14%',
+      render: v => Number(v).toLocaleString() },
+    { data: 'indian',      title: 'Indian',        className: 'dt-center', width: '14%',
+      render: v => Number(v).toLocaleString() },
+    { data: 'malagasy',    title: 'Malagasy',      className: 'dt-center', width: '14%',
+      render: v => Number(v).toLocaleString() },
+    { data: 'srilankan',   title: 'Sri Lankan',    className: 'dt-center', width: '14%',
+      render: v => Number(v).toLocaleString() },
+    { data: 'total',       title: 'Total',         className: 'dt-center', width: '16%',
+      render: v => '<strong>' + Number(v).toLocaleString() + '</strong>' },
+  ];
+
+  makeDataTable('rpt-emp-table', cols, 'Employee Count Report', { data: data.emp_rows, order: [] });
+
+  makeBarChart('chart-rpt-emp', data.periods,
+    NATIONALITIES.map(nat => ({
+      label: NAT_DISPLAY[nat], data: data.emp_rows.map(r => r[nat.toLowerCase()]),
+      color: NAT_COLORS[nat].bg, border: NAT_COLORS[nat].border,
+    }))
+  );
+}
+
+/* ---- Cost per head ---- */
+function renderCphReport(data) {
+  const cols = [
+    { data: 'period',      title: 'Period',       width: '28%' },
+    { data: 'bangladeshi', title: 'Bangladeshi',   className: 'dt-center', width: '14%' },
+    { data: 'indian',      title: 'Indian',        className: 'dt-center', width: '14%' },
+    { data: 'malagasy',    title: 'Malagasy',      className: 'dt-center', width: '14%' },
+    { data: 'srilankan',   title: 'Sri Lankan',    className: 'dt-center', width: '14%' },
+    { data: 'total',       title: 'Average',       className: 'dt-center', width: '16%',
+      render: v => '<strong>' + v + '</strong>' },
+  ];
+
+  makeDataTable('rpt-cph-table', cols, 'Cost Per Head Report', { data: data.cph_rows, order: [] });
+
+  makeLineChart('chart-rpt-cph', data.periods,
+    NATIONALITIES.map(nat => ({
+      label:   NAT_DISPLAY[nat] + ' CPH',
+      data:    data.cph_raw[nat],
+      color:   NAT_COLORS[nat].border,
+      bgColor: NAT_COLORS[nat].bg,
+    }))
+  );
+}
+
+/* ---- Charts overview tab ---- */
+function renderChartsOverview(data) {
+  const totals = NATIONALITIES.map(nat => data.expenses_raw[nat].reduce((a, b) => a + b, 0));
+  makeDoughnutChart('chart-rpt-donut',
+    NATIONALITIES.map(n => NAT_DISPLAY[n]),
+    totals,
+    NATIONALITIES.map(n => NAT_COLORS[n].border)
+  );
+
+  // Average CPH per nationality
+  const avgCph = NATIONALITIES.map(nat => {
+    const vals = data.cph_raw[nat];
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  });
+  makeBarChart('chart-rpt-cph-bar', NATIONALITIES.map(n => NAT_DISPLAY[n]),
+    [{ label: 'Avg Cost Per Head', data: avgCph,
+       color: NATIONALITIES.map(n => NAT_COLORS[n].bg),
+       border: NATIONALITIES.map(n => NAT_COLORS[n].border) }],
+    { currency: true }
+  );
+
+  makeLineChart('chart-rpt-trend', data.periods,
+    NATIONALITIES.map(nat => ({
+      label:   NAT_DISPLAY[nat],
+      data:    data.expenses_raw[nat],
+      color:   NAT_COLORS[nat].border,
+      bgColor: NAT_COLORS[nat].bg,
+    }))
+  );
+}
+
+// Re-adjust DataTables when switching tabs (fixes column misalignment on hidden tabs)
+document.querySelectorAll('#report-tabs button[data-bs-toggle="tab"]').forEach(btn => {
+  btn.addEventListener('shown.bs.tab', () => {
+    $.fn.DataTable.tables({ visible: true, api: true }).columns.adjust();
+  });
+});
+</script>
+{% endblock %}

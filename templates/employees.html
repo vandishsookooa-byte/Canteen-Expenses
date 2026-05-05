@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title_suffix %} – Employees{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="filter-bar">
+  <label>From Period:</label>
+  <select id="sel-from"></select>
+  <label>To Period:</label>
+  <select id="sel-to"></select>
+  <button class="btn-apply" onclick="loadEmployees()">Apply</button>
+  <button class="btn-reset" onclick="resetFilter()">Reset</button>
+</div>
+
+<!-- Employee count table -->
+<div class="section-card">
+  <div class="section-title">Employee Count by Period &amp; Nationality</div>
+
+  <!-- Export buttons rendered by DataTables Buttons; table below -->
+  <div class="table-responsive">
+    <table id="emp-table" class="table dataTable" style="width:100%">
+      <thead>
+        <tr>
+          <th style="width:28%">Period</th>
+          <th style="width:14%">Bangladeshi</th>
+          <th style="width:14%">Indian</th>
+          <th style="width:14%">Malagasy</th>
+          <th style="width:14%">Sri Lankan</th>
+          <th style="width:16%">Total</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Employee bar chart -->
+<div class="section-card">
+  <div class="section-title">Employee Distribution by Period</div>
+  <div class="chart-container" style="height:280px;">
+    <canvas id="chart-emp"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let empTable = null;
+
+populatePeriodSelects('sel-from', 'sel-to', () => loadEmployees());
+
+function resetFilter() {
+  document.getElementById('sel-from').value = '';
+  document.getElementById('sel-to').value   = '';
+  loadEmployees();
+}
+
+function loadEmployees() {
+  const qs = getFilterParams('sel-from', 'sel-to');
+  fetch('/api/employees' + qs)
+    .then(r => r.json())
+    .then(resp => {
+      const rows = resp.data;
+      renderTable(rows);
+      renderChart(rows);
+    });
+}
+
+function renderTable(rows) {
+  const columns = [
+    { data: 'period',      title: 'Period',       className: 'dt-left'   },
+    { data: 'bangladeshi', title: 'Bangladeshi',  className: 'dt-center',
+      render: v => Number(v).toLocaleString() },
+    { data: 'indian',      title: 'Indian',       className: 'dt-center',
+      render: v => Number(v).toLocaleString() },
+    { data: 'malagasy',    title: 'Malagasy',     className: 'dt-center',
+      render: v => Number(v).toLocaleString() },
+    { data: 'srilankan',   title: 'Sri Lankan',   className: 'dt-center',
+      render: v => Number(v).toLocaleString() },
+    { data: 'total',       title: 'Total',        className: 'dt-center',
+      render: v => '<strong>' + Number(v).toLocaleString() + '</strong>' },
+  ];
+
+  empTable = makeDataTable('emp-table', columns, 'Employee Count by Period & Nationality', {
+    data: rows,
+    paging: true,
+    pageLength: 10,
+    order: [],
+    columnDefs: [
+      { targets: 0, width: '28%' },
+      { targets: [1,2,3,4], width: '14%' },
+      { targets: 5, width: '16%' },
+    ],
+  });
+}
+
+function renderChart(rows) {
+  const periods = rows.map(r => r.period);
+  makeBarChart('chart-emp', periods, [
+    { label: 'Bangladeshi', data: rows.map(r => r.bangladeshi), color: NAT_COLORS.Bangladeshi.bg,  border: NAT_COLORS.Bangladeshi.border },
+    { label: 'Indian',      data: rows.map(r => r.indian),      color: NAT_COLORS.Indian.bg,       border: NAT_COLORS.Indian.border      },
+    { label: 'Malagasy',    data: rows.map(r => r.malagasy),    color: NAT_COLORS.Malagasy.bg,     border: NAT_COLORS.Malagasy.border    },
+    { label: 'Sri Lankan',  data: rows.map(r => r.srilankan),   color: NAT_COLORS.Srilankan.bg,    border: NAT_COLORS.Srilankan.border   },
+  ]);
+}
+</script>
+{% endblock %}
