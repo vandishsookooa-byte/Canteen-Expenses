@@ -214,10 +214,10 @@ def load_workbook_data() -> dict:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
 
             _cache = {"nationality": nationality_data, "employees": employees_df}
-            _cache_loaded_at = time.monotonic()
         except Exception:
             logger.error("Failed to load workbook")
             _cache = {"nationality": {}, "employees": pd.DataFrame()}
+        finally:
             _cache_loaded_at = time.monotonic()
 
         return _cache

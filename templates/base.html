@@ -77,9 +77,15 @@
     btn.disabled = true;
     btn.textContent = '⏳ Refreshing…';
     try {
-      await fetch('/api/refresh', { method: 'POST' });
-    } catch (_) {}
-    window.location.reload();
+      const resp = await fetch('/api/refresh', { method: 'POST' });
+      if (!resp.ok) throw new Error('Server returned ' + resp.status);
+      window.location.reload();
+    } catch (e) {
+      console.error('Refresh failed:', e);
+      btn.disabled = false;
+      btn.textContent = '🔄 Refresh';
+      alert('Could not refresh data. Please try again.');
+    }
   }
   </script>
   {% block extra_scripts %}{% endblock %}
