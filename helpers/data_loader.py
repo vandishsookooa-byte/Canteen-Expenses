@@ -96,9 +96,9 @@ def load_workbook_data() -> dict:
             _TOTAL_ALTS = ["TOTAL", "AMOUNT", "TOTAL AMOUNT", "GRAND TOTAL", "TOTAL (RS)", "TOTAL RS", "TOTAL EXPENDITURE"]
             _ITEMS_ALTS = ["ITEMS", "ITEM", "ITEM NAME", "DESCRIPTION", "PARTICULARS", "FOOD ITEM"]
             # Regex that matches any cell value formatted as a period range:
-            # DD.MM.YYYY - DD.MM.YYYY  (hyphen (-) or en-dash (\u2013 –), with optional spaces)
+            # DD.MM.YYYY - DD.MM.YYYY  (hyphen, en-dash \u2013, or em-dash \u2014, with optional spaces)
             _PERIOD_CONTENT_RE = re.compile(
-                r"^\d{2}\.\d{2}\.\d{4}\s*[-\u2013]\s*\d{2}\.\d{2}\.\d{4}$"
+                r"^\d{2}\.\d{2}\.\d{4}\s*[-\u2013\u2014]\s*\d{2}\.\d{2}\.\d{4}$"
             )
 
             nationality_data: dict = {}
