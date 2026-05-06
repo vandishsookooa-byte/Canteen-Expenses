@@ -6,6 +6,7 @@ from flask import Flask, render_template, jsonify, request, send_file, Response
 
 from helpers.data_loader import (
     get_periods,
+    get_expense_periods,
     get_kpi_data,
     get_trend_data,
     get_comparison_data,
@@ -71,7 +72,10 @@ def _download_response(df, filename_base: str, fmt: str) -> Response:
 @app.route("/")
 def dashboard():
     periods = get_periods()
-    latest = periods[-1] if periods else ""
+    # latest_period comes from expense sheets only — avoids defaulting to a future
+    # period that has employee data but no expense data yet.
+    expense_periods = get_expense_periods()
+    latest = expense_periods[-1] if expense_periods else ""
     return render_template("dashboard.html", periods=periods, latest_period=latest)
 
 

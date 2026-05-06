@@ -80,8 +80,8 @@ def load_workbook_data() -> dict:
                         df["UNIT PRICE"] = pd.to_numeric(df["UNIT PRICE"], errors="coerce").fillna(0)
                         df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
-                    except Exception:
-                        logger.error("Error parsing nationality sheet data")
+                    except Exception as exc:
+                        logger.error("Error parsing sheet %r: %s", sheet, exc, exc_info=True)
                         nationality_data[sheet] = pd.DataFrame()
 
             employees_df = pd.DataFrame()
@@ -97,8 +97,8 @@ def load_workbook_data() -> dict:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
                             else:
                                 employees_df[col] = 0
-                    except Exception:
-                        logger.error("Error parsing EMPLOYEES sheet")
+                    except Exception as exc:
+                        logger.error("Error parsing EMPLOYEES sheet: %s", exc, exc_info=True)
 
             _cache = {"nationality": nationality_data, "employees": employees_df}
         except Exception:
@@ -210,7 +210,7 @@ def get_employees(period_from: str | None = None, period_to: str | None = None) 
 
 
 def get_periods() -> list:
-    """Return sorted list of all unique parseable periods found across all sheets."""
+    """Return sorted list of all unique parseable periods found across all sheets (including EMPLOYEES)."""
     data = load_workbook_data()
     periods = set()
     for df in data["nationality"].values():
@@ -225,6 +225,34 @@ def get_periods() -> list:
         return start or date.min
 
     # Only include periods that successfully parse to a real date
+    valid = []
+    for p in periods:
+        s = str(p)
+        if s.lower() in ("nan", "none", "", "period"):
+            continue
+        start, _ = parse_period_date(s)
+        if start is not None:
+            valid.append(s)
+
+    return sorted(valid, key=sort_key)
+
+
+def get_expense_periods() -> list:
+    """Return sorted list of parseable periods from expense sheets only (excludes EMPLOYEES sheet).
+
+    Use this for the dashboard default period so that the latest selected period
+    always corresponds to a period with actual expense data.
+    """
+    data = load_workbook_data()
+    periods = set()
+    for df in data["nationality"].values():
+        if not df.empty and "PERIOD" in df.columns:
+            periods.update(df["PERIOD"].dropna().unique().tolist())
+
+    def sort_key(p):
+        start, _ = parse_period_date(str(p))
+        return start or date.min
+
     valid = []
     for p in periods:
         s = str(p)
@@ -277,13 +305,14 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
 
     total_expenditure = float(expenses["TOTAL"].sum()) if not expenses.empty else 0.0
 
-    # Total employees: sum per period then average across periods, or just latest period total
-    nat_cols = [c for c in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"] if c in employees.columns]
+    # Total employees: peak count in any single period
+    nat_col_keys = ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
+    nat_cols = [c for c in nat_col_keys if not employees.empty and c in employees.columns]
     total_employees = 0
     if not employees.empty and nat_cols:
-        employees = employees.copy()
-        employees["_total"] = employees[nat_cols].sum(axis=1)
-        total_employees = int(employees["_total"].max()) if not employees.empty else 0
+        _emp = employees.copy()
+        _emp["_total"] = _emp[nat_cols].sum(axis=1)
+        total_employees = int(_emp["_total"].max())
 
     avg_per_head = 0.0
     if total_employees > 0:
@@ -296,18 +325,23 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
         if not nat_totals.empty:
             top_nat = str(nat_totals.idxmax())
 
-    # Nationality expenditure breakdown for donut/bar
-    nat_exp: dict = {}
+    # Nationality expenditure — always include all 4 in NATIONALITY_SHEETS order so bar chart
+    # colours are always consistent and every nationality shows (with 0 if no data).
+    nat_exp: dict = {nat: 0.0 for nat in NATIONALITY_SHEETS}
     if not expenses.empty and "nationality" in expenses.columns:
         for nat, grp in expenses.groupby("nationality"):
-            nat_exp[str(nat)] = float(grp["TOTAL"].sum())
+            if str(nat) in nat_exp:
+                nat_exp[str(nat)] = float(grp["TOTAL"].sum())
 
-    # Employee counts by nationality (latest period or aggregate)
+    # Employee counts — always include all 4 in NATIONALITY_SHEETS order (consistent colours)
     nat_emp: dict = {}
-    if not employees.empty:
-        for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
-            if col in employees.columns:
-                nat_emp[col.capitalize()] = int(employees[col].sum())
+    nat_col_map = {n: n.upper() for n in NATIONALITY_SHEETS}
+    for nat in NATIONALITY_SHEETS:
+        col = nat_col_map[nat]
+        if not employees.empty and col in employees.columns:
+            nat_emp[nat] = int(employees[col].sum())
+        else:
+            nat_emp[nat] = 0
 
     return {
         "total_employees": total_employees,
