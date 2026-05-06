@@ -18,6 +18,7 @@ from helpers.data_loader import (
     get_report_monthly,
     get_nationality_sheets,
     get_item_comparison,
+    clear_cache,
     NATIONALITY_SHEETS,
     format_rs,
 )
@@ -115,6 +116,17 @@ def api_periods():
     except Exception as exc:
         logger.error("api_periods error: %s", exc)
         return jsonify([])
+
+
+@app.route("/api/refresh", methods=["POST"])
+def api_refresh():
+    """Clear the in-memory cache so the next request re-reads Canteen.xlsx."""
+    try:
+        clear_cache()
+        return jsonify({"status": "ok"})
+    except Exception as exc:
+        logger.error("api_refresh error: %s", exc)
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @app.route("/api/kpi")

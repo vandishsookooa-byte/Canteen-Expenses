@@ -45,6 +45,9 @@
       </button>
       <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
       <div class="header-meta">
+        <button class="btn-refresh" id="refreshBtn" onclick="refreshData()" title="Reload data from Excel file">
+          🔄 Refresh
+        </button>
         <span class="header-badge">Live Data</span>
       </div>
     </header>
@@ -68,6 +71,17 @@
   <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+  <script>
+  async function refreshData() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Refreshing…';
+    try {
+      await fetch('/api/refresh', { method: 'POST' });
+    } catch (_) {}
+    window.location.reload();
+  }
+  </script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

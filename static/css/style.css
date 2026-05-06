@@ -149,6 +149,21 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+.btn-refresh {
+  background: none;
+  border: 1px solid var(--highlight);
+  color: var(--highlight);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+.btn-refresh:hover:not(:disabled) { background: var(--highlight); color: #fff; }
+.btn-refresh:disabled { opacity: 0.55; cursor: default; }
+
 .content-area {
   flex: 1;
   padding: 24px;

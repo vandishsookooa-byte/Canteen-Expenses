@@ -4,6 +4,7 @@ import re
 import logging
 import math
 import threading
+import time
 from datetime import datetime, date
 
 import pandas as pd
@@ -14,9 +15,16 @@ NATIONALITY_SHEETS = ["Bangladeshi", "Malagasy", "Indian", "Srilankan"]
 EXPENSE_COLUMNS = ["PERIOD", "ITEMS", "QTY", "UNIT", "UNIT PRICE", "TOTAL"]
 EMPLOYEE_COLUMNS = ["PERIOD", "BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
 
+# Cache is invalidated when file mtime changes OR after this many seconds,
+# whichever comes first.  The TTL ensures updates are always picked up even
+# on file systems / OS combinations where mtime resolution is coarse or the
+# file is replaced without changing its mtime.
+CACHE_TTL_SECONDS: int = 30
+
 _cache: dict = {}
 _cache_path: str = ""
 _cache_mtime: float = 0.0
+_cache_loaded_at: float = 0.0
 _cache_lock = threading.Lock()
 
 
@@ -27,14 +35,21 @@ def _get_excel_path() -> str:
 def load_workbook_data() -> dict:
     """Load and cache all sheets from the Excel workbook.
 
-    The cache is invalidated automatically whenever the Excel file is modified
-    on disk, so edits take effect on the next request without a server restart.
+    The cache is invalidated when the Excel file's mtime changes OR when the
+    cached data is older than CACHE_TTL_SECONDS, ensuring that updates to the
+    file are always reflected within at most CACHE_TTL_SECONDS seconds.
     """
-    global _cache, _cache_path, _cache_mtime
+    global _cache, _cache_path, _cache_mtime, _cache_loaded_at
     path = _get_excel_path()
     with _cache_lock:
         current_mtime = os.path.getmtime(path) if os.path.exists(path) else 0.0
-        if _cache and _cache_path == path and current_mtime == _cache_mtime:
+        cache_age = time.monotonic() - _cache_loaded_at
+        if (
+            _cache
+            and _cache_path == path
+            and current_mtime == _cache_mtime
+            and cache_age < CACHE_TTL_SECONDS
+        ):
             return _cache
 
         _cache_path = path
@@ -199,11 +214,23 @@ def load_workbook_data() -> dict:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
 
             _cache = {"nationality": nationality_data, "employees": employees_df}
+            _cache_loaded_at = time.monotonic()
         except Exception:
             logger.error("Failed to load workbook")
             _cache = {"nationality": {}, "employees": pd.DataFrame()}
+            _cache_loaded_at = time.monotonic()
 
         return _cache
+
+
+def clear_cache() -> None:
+    """Force cache invalidation so the next call to load_workbook_data() re-reads the Excel file."""
+    global _cache, _cache_mtime, _cache_loaded_at
+    with _cache_lock:
+        _cache = {}
+        _cache_mtime = 0.0
+        _cache_loaded_at = 0.0
+    logger.info("Data cache cleared — Excel file will be reloaded on next request")
 
 
 def get_nationality_sheets() -> list:
