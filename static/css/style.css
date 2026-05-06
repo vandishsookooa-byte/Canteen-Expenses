@@ -385,13 +385,28 @@ html, body {
 .report-card:hover { border-color: var(--highlight); transform: translateY(-2px); }
 
 .report-icon { font-size: 40px; text-align: center; }
-.report-desc { color: var(--text-secondary); font-size: 13px; flex: 1; }
+.report-icon-sm { font-size: 22px; margin-right: 8px; }
+.report-desc { color: var(--text-secondary); font-size: 13px; flex: 1; margin: 4px 0 0; }
+
+.report-section { padding: 20px; }
+
+.report-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
 
 .report-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
 }
 
 /* ─── Nationality Badges ─────────────────────────────────────── */

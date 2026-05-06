@@ -40,11 +40,27 @@ def load_workbook_data() -> dict:
             xl = pd.ExcelFile(path, engine="openpyxl")
             sheets = xl.sheet_names
 
+            # Build case-insensitive, whitespace-stripped sheet name lookup
+            sheet_lookup = {s.strip().lower(): s for s in sheets}
+
+            def _find_sheet(target: str):
+                """Return actual sheet name matching target (case-insensitive)."""
+                exact = target if target in sheets else None
+                if exact:
+                    return exact
+                return sheet_lookup.get(target.strip().lower())
+
+            _BAD_PERIODS = {"", "nan", "none", "nat", "period"}
+
+            def _valid_period(p: str) -> bool:
+                return p.strip().lower() not in _BAD_PERIODS
+
             nationality_data: dict = {}
             for sheet in NATIONALITY_SHEETS:
-                if sheet in sheets:
+                actual_sheet = _find_sheet(sheet)
+                if actual_sheet:
                     try:
-                        df = xl.parse(sheet)
+                        df = xl.parse(actual_sheet)
                         df.columns = [str(c).strip().upper() for c in df.columns]
                         for col in ["PERIOD", "TOTAL"]:
                             if col not in df.columns:
@@ -58,9 +74,11 @@ def load_workbook_data() -> dict:
                         if "UNIT PRICE" not in df.columns:
                             df["UNIT PRICE"] = 0
                         df["PERIOD"] = df["PERIOD"].astype(str).str.strip()
-                        df = df[df["PERIOD"].notna() & (df["PERIOD"] != "") & (df["PERIOD"] != "nan")]
+                        df = df[df["PERIOD"].apply(_valid_period)]
                         df["TOTAL"] = pd.to_numeric(df["TOTAL"], errors="coerce").fillna(0)
-                        df["nationality"] = sheet
+                        df["QTY"] = pd.to_numeric(df["QTY"], errors="coerce").fillna(0)
+                        df["UNIT PRICE"] = pd.to_numeric(df["UNIT PRICE"], errors="coerce").fillna(0)
+                        df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
                     except Exception:
                         logger.error("Error parsing nationality sheet data")
@@ -68,16 +86,12 @@ def load_workbook_data() -> dict:
 
             employees_df = pd.DataFrame()
             for name in sheets:
-                if name.upper() == "EMPLOYEES":
+                if name.strip().upper() == "EMPLOYEES":
                     try:
                         employees_df = xl.parse(name)
                         employees_df.columns = [str(c).strip().upper() for c in employees_df.columns]
                         employees_df["PERIOD"] = employees_df["PERIOD"].astype(str).str.strip()
-                        employees_df = employees_df[
-                            employees_df["PERIOD"].notna()
-                            & (employees_df["PERIOD"] != "")
-                            & (employees_df["PERIOD"] != "nan")
-                        ]
+                        employees_df = employees_df[employees_df["PERIOD"].apply(_valid_period)]
                         for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
                             if col in employees_df.columns:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
@@ -196,7 +210,7 @@ def get_employees(period_from: str | None = None, period_to: str | None = None) 
 
 
 def get_periods() -> list:
-    """Return sorted list of all unique periods found across all sheets."""
+    """Return sorted list of all unique parseable periods found across all sheets."""
     data = load_workbook_data()
     periods = set()
     for df in data["nationality"].values():
@@ -210,11 +224,21 @@ def get_periods() -> list:
         start, _ = parse_period_date(str(p))
         return start or date.min
 
-    return sorted([str(p) for p in periods if str(p) not in ("nan", "")], key=sort_key)
+    # Only include periods that successfully parse to a real date
+    valid = []
+    for p in periods:
+        s = str(p)
+        if s.lower() in ("nan", "none", "", "period"):
+            continue
+        start, _ = parse_period_date(s)
+        if start is not None:
+            valid.append(s)
+
+    return sorted(valid, key=sort_key)
 
 
 def format_rs(amount) -> str:
-    """Format as Mauritian Rupee with Indian-style grouping: Rs 4,03,670"""
+    """Format as Mauritian Rupee with standard Western grouping: Rs 1,000,000"""
     try:
         if amount is None or (isinstance(amount, float) and math.isnan(amount)):
             return "Rs 0"
@@ -228,16 +252,8 @@ def format_rs(amount) -> str:
     int_part = int(amount)
     dec_part = round((amount - int_part) * 100)
 
-    # Indian grouping: last 3 digits, then groups of 2
-    s = str(int_part)
-    if len(s) > 3:
-        result = s[-3:]
-        s = s[:-3]
-        while s:
-            result = s[-2:] + "," + result
-            s = s[:-2]
-    else:
-        result = s
+    # Standard Western grouping: groups of 3
+    result = f"{int_part:,}"
 
     if dec_part > 0:
         result = f"{result}.{dec_part:02d}"
@@ -495,3 +511,91 @@ def get_report_monthly(period_from=None, period_to=None) -> pd.DataFrame:
         return df
     df = df.sort_values(["Month", "Fortnight Period", "Nationality"])
     return df
+
+
+def get_item_comparison(nationality: str | None = None, period_from: str | None = None, period_to: str | None = None) -> dict:
+    """Return item-by-item comparison across nationalities.
+
+    Returns a dict:
+      {
+        "nationalities": [...],
+        "items": [
+          {
+            "item": "Rice",
+            "by_nationality": {
+              "Bangladeshi": {"qty": 500, "total": 25000, "total_fmt": "Rs 25,000", "per_head": 35.71, "per_head_fmt": "Rs 35.71"},
+              ...
+            },
+            "grand_total": 75000,
+            "grand_total_fmt": "Rs 75,000",
+          },
+          ...
+        ]
+      }
+    """
+    targets = [nationality] if nationality else NATIONALITY_SHEETS
+    employees = get_employees(period_from=period_from, period_to=period_to)
+
+    nat_col_map = {
+        "Bangladeshi": "BANGLADESHI",
+        "Indian": "INDIAN",
+        "Malagasy": "MALAGASY",
+        "Srilankan": "SRILANKAN",
+    }
+
+    # Collect per-nationality employee totals
+    nat_emp: dict = {}
+    for nat in targets:
+        emp_col = nat_col_map.get(nat, nat.upper())
+        if not employees.empty and emp_col in employees.columns:
+            nat_emp[nat] = int(employees[emp_col].sum())
+        else:
+            nat_emp[nat] = 0
+
+    # Collect all expense rows
+    all_items: dict = {}  # item_name -> {nat -> {qty, total}}
+    for nat in targets:
+        exp = get_all_expenses(nationality=nat, period_from=period_from, period_to=period_to)
+        if exp.empty:
+            continue
+        if "ITEMS" not in exp.columns:
+            continue
+        for item_name, grp in exp.groupby("ITEMS"):
+            item_key = str(item_name).strip()
+            if not item_key or item_key.lower() in ("nan", "none", ""):
+                continue
+            if item_key not in all_items:
+                all_items[item_key] = {}
+            qty = float(grp["QTY"].sum()) if "QTY" in grp.columns else 0.0
+            total = float(grp["TOTAL"].sum())
+            emp_count = nat_emp.get(nat, 0)
+            per_head = total / emp_count if emp_count > 0 else 0.0
+            all_items[item_key][nat] = {
+                "qty": round(qty, 2),
+                "total": round(total, 2),
+                "total_fmt": format_rs(total),
+                "per_head": round(per_head, 2),
+                "per_head_fmt": format_rs(per_head),
+            }
+
+    # Sort items by grand total descending
+    def item_grand_total(item_data):
+        return sum(v["total"] for v in item_data.values())
+
+    sorted_items = sorted(all_items.items(), key=lambda kv: item_grand_total(kv[1]), reverse=True)
+
+    items_list = []
+    for item_name, by_nat in sorted_items:
+        grand_total = item_grand_total(by_nat)
+        items_list.append({
+            "item": item_name,
+            "by_nationality": by_nat,
+            "grand_total": round(grand_total, 2),
+            "grand_total_fmt": format_rs(grand_total),
+        })
+
+    return {
+        "nationalities": targets,
+        "nat_employees": nat_emp,
+        "items": items_list,
+    }

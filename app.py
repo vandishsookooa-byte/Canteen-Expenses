@@ -16,6 +16,7 @@ from helpers.data_loader import (
     get_report_summary,
     get_report_monthly,
     get_nationality_sheets,
+    get_item_comparison,
     NATIONALITY_SHEETS,
     format_rs,
 )
@@ -211,6 +212,45 @@ def api_comparison():
         return jsonify(get_comparison_data(period_from=period_from, period_to=period_to))
     except Exception as exc:
         logger.error("api_comparison error: %s", exc)
+        return jsonify({"error": "An internal error occurred"})
+
+
+@app.route("/api/items/comparison")
+def api_items_comparison():
+    """Item-by-item consumption comparison across nationalities."""
+    try:
+        period_from, period_to, nationality = _get_filter_args()
+        return jsonify(get_item_comparison(nationality=nationality, period_from=period_from, period_to=period_to))
+    except Exception as exc:
+        logger.error("api_items_comparison error: %s", exc)
+        return jsonify({"error": "An internal error occurred"})
+
+
+@app.route("/api/report/data/<report_type>")
+def api_report_data(report_type: str):
+    """Return report data as JSON for inline preview."""
+    try:
+        period_from, period_to, nationality = _get_filter_args()
+        if report_type == "perhead":
+            df = get_report_perhead(period_from=period_from, period_to=period_to, nationality=nationality)
+        elif report_type == "detailed":
+            df = get_report_detailed(period_from=period_from, period_to=period_to, nationality=nationality)
+        elif report_type == "summary":
+            df = get_report_summary(period_from=period_from, period_to=period_to)
+        elif report_type == "monthly":
+            df = get_report_monthly(period_from=period_from, period_to=period_to)
+        else:
+            return jsonify({"error": "Unknown report type"}), 404
+
+        if df.empty:
+            return jsonify({"columns": [], "rows": []})
+
+        return jsonify({
+            "columns": list(df.columns),
+            "rows": df.fillna("").values.tolist(),
+        })
+    except Exception as exc:
+        logger.error("api_report_data error: %s", exc)
         return jsonify({"error": "An internal error occurred"})
 
 

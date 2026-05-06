@@ -3,6 +3,7 @@
 {% block page_title %}Reports{% endblock %}
 
 {% block content %}
+<!-- Global filters -->
 <div class="filter-bar card">
   <label>From Period:</label>
   <select id="periodFrom" class="form-select">
@@ -19,93 +20,170 @@
     <option value="">All Nationalities</option>
     {% for n in nationalities %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
   </select>
+  <button class="btn btn-primary" onclick="loadAllReports()">Apply</button>
   <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
 </div>
 
-<div class="reports-grid">
-  <!-- Per-Head Consumption -->
-  <div class="card report-card">
-    <div class="report-icon">👤</div>
-    <div class="card-header">Per-Head Consumption</div>
-    <p class="report-desc">Expenditure per employee per period, broken down by nationality.</p>
+<!-- ── Per-Head Consumption ── -->
+<div class="card report-section" style="margin-bottom:1.5rem;">
+  <div class="report-section-header">
+    <div>
+      <span class="report-icon-sm">👤</span>
+      <span class="card-header" style="display:inline;border:none;margin:0;padding:0">Per-Head Consumption</span>
+      <p class="report-desc">Expenditure per employee per period, broken down by nationality.</p>
+    </div>
     <div class="report-actions">
-      <button class="btn btn-download btn-csv" onclick="download('perhead','csv')">
-        ⬇ Download CSV
-      </button>
-      <button class="btn btn-download btn-excel" onclick="download('perhead','excel')">
-        ⬇ Download Excel
-      </button>
+      <button class="btn btn-download btn-csv"   onclick="download('perhead','csv')">⬇ CSV</button>
+      <button class="btn btn-download btn-excel" onclick="download('perhead','excel')">⬇ Excel</button>
     </div>
   </div>
+  <div class="table-responsive">
+    <table id="tblPerhead" class="data-table report-table">
+      <thead id="tblPerheadHead"></thead>
+      <tbody id="tblPerheadBody"><tr><td colspan="5" class="text-center">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
 
-  <!-- Detailed Expenditure -->
-  <div class="card report-card">
-    <div class="report-icon">📝</div>
-    <div class="card-header">Detailed Expenditure</div>
-    <p class="report-desc">Full item-level breakdown with quantities, unit prices and totals.</p>
+<!-- ── Detailed Expenditure ── -->
+<div class="card report-section" style="margin-bottom:1.5rem;">
+  <div class="report-section-header">
+    <div>
+      <span class="report-icon-sm">📝</span>
+      <span class="card-header" style="display:inline;border:none;margin:0;padding:0">Detailed Expenditure</span>
+      <p class="report-desc">Full item-level breakdown with quantities, unit prices and totals.</p>
+    </div>
     <div class="report-actions">
-      <button class="btn btn-download btn-csv" onclick="download('detailed','csv')">
-        ⬇ Download CSV
-      </button>
-      <button class="btn btn-download btn-excel" onclick="download('detailed','excel')">
-        ⬇ Download Excel
-      </button>
+      <button class="btn btn-download btn-csv"   onclick="download('detailed','csv')">⬇ CSV</button>
+      <button class="btn btn-download btn-excel" onclick="download('detailed','excel')">⬇ Excel</button>
     </div>
   </div>
+  <div class="table-responsive">
+    <table id="tblDetailed" class="data-table report-table">
+      <thead id="tblDetailedHead"></thead>
+      <tbody id="tblDetailedBody"><tr><td colspan="7" class="text-center">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
 
-  <!-- Summary -->
-  <div class="card report-card">
-    <div class="report-icon">📊</div>
-    <div class="card-header">Summary Report</div>
-    <p class="report-desc">Consolidated summary of expenditure by period and nationality.</p>
+<!-- ── Summary Report ── -->
+<div class="card report-section" style="margin-bottom:1.5rem;">
+  <div class="report-section-header">
+    <div>
+      <span class="report-icon-sm">📊</span>
+      <span class="card-header" style="display:inline;border:none;margin:0;padding:0">Summary Report</span>
+      <p class="report-desc">Consolidated summary of expenditure by period and nationality.</p>
+    </div>
     <div class="report-actions">
-      <button class="btn btn-download btn-csv" onclick="download('summary','csv')">
-        ⬇ Download CSV
-      </button>
-      <button class="btn btn-download btn-excel" onclick="download('summary','excel')">
-        ⬇ Download Excel
-      </button>
+      <button class="btn btn-download btn-csv"   onclick="download('summary','csv')">⬇ CSV</button>
+      <button class="btn btn-download btn-excel" onclick="download('summary','excel')">⬇ Excel</button>
     </div>
   </div>
+  <div class="table-responsive">
+    <table id="tblSummary" class="data-table report-table">
+      <thead id="tblSummaryHead"></thead>
+      <tbody id="tblSummaryBody"><tr><td colspan="4" class="text-center">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
 
-  <!-- Monthly / Fortnight -->
-  <div class="card report-card">
-    <div class="report-icon">📅</div>
-    <div class="card-header">Monthly / Fortnight Report</div>
-    <p class="report-desc">Expenditure aggregated by month and fortnight across all nationalities.</p>
-    <div class="report-actions">
-      <button class="btn btn-download btn-csv" onclick="download('monthly','csv')">
-        ⬇ Download CSV
-      </button>
-      <button class="btn btn-download btn-excel" onclick="download('monthly','excel')">
-        ⬇ Download Excel
-      </button>
+<!-- ── Monthly / Fortnight ── -->
+<div class="card report-section">
+  <div class="report-section-header">
+    <div>
+      <span class="report-icon-sm">📅</span>
+      <span class="card-header" style="display:inline;border:none;margin:0;padding:0">Monthly / Fortnight Report</span>
+      <p class="report-desc">Expenditure aggregated by month and fortnight across all nationalities.</p>
     </div>
+    <div class="report-actions">
+      <button class="btn btn-download btn-csv"   onclick="download('monthly','csv')">⬇ CSV</button>
+      <button class="btn btn-download btn-excel" onclick="download('monthly','excel')">⬇ Excel</button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table id="tblMonthly" class="data-table report-table">
+      <thead id="tblMonthlyHead"></thead>
+      <tbody id="tblMonthlyBody"><tr><td colspan="4" class="text-center">Loading…</td></tr></tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+const dtInstances = {};
+
 function resetFilters() {
   document.getElementById('periodFrom').value = '';
   document.getElementById('periodTo').value = '';
   document.getElementById('natFilter').value = '';
+  loadAllReports();
 }
 
 function buildQuery(fmt) {
   const from = document.getElementById('periodFrom').value;
-  const to = document.getElementById('periodTo').value;
-  const nat = document.getElementById('natFilter').value;
-  const parts = [`format=${fmt}`];
+  const to   = document.getElementById('periodTo').value;
+  const nat  = document.getElementById('natFilter').value;
+  const parts = fmt ? [`format=${fmt}`] : [];
   if (from) parts.push('from=' + encodeURIComponent(from));
-  if (to) parts.push('to=' + encodeURIComponent(to));
-  if (nat) parts.push('nationality=' + encodeURIComponent(nat));
+  if (to)   parts.push('to='   + encodeURIComponent(to));
+  if (nat)  parts.push('nationality=' + encodeURIComponent(nat));
   return parts.join('&');
 }
 
 function download(report, fmt) {
   window.location.href = `/reports/download/${report}?` + buildQuery(fmt);
 }
+
+function renderTable(headId, bodyId, tableId, dtKey, data) {
+  const thead = document.getElementById(headId);
+  const tbody = document.getElementById(bodyId);
+
+  if (dtInstances[dtKey]) { dtInstances[dtKey].destroy(); delete dtInstances[dtKey]; }
+
+  if (!data.columns || !data.columns.length || !data.rows || !data.rows.length) {
+    const cols = (data.columns && data.columns.length) || 4;
+    thead.innerHTML = '';
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center empty-state">No data available</td></tr>`;
+    return;
+  }
+
+  thead.innerHTML = '<tr>' + data.columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = data.rows.map(row => '<tr>' + row.map((cell, ci) => {
+    const isNum = typeof cell === 'number';
+    const cls = isNum ? ' class="num-cell"' : '';
+    const display = isNum ? cell.toLocaleString('en-US') : cell;
+    return `<td${cls}>${display}</td>`;
+  }).join('') + '</tr>').join('');
+
+  dtInstances[dtKey] = $(`#${tableId}`).DataTable({
+    order: [],
+    pageLength: 15,
+    language: { emptyTable: 'No data available' }
+  });
+}
+
+async function loadReport(type, headId, bodyId, tableId, dtKey) {
+  try {
+    const res = await fetch(`/api/report/data/${type}?` + buildQuery());
+    const d   = await res.json();
+    renderTable(headId, bodyId, tableId, dtKey, d);
+  } catch(e) {
+    document.getElementById(bodyId).innerHTML =
+      '<tr><td colspan="5" class="text-center empty-state">Error loading data</td></tr>';
+  }
+}
+
+async function loadAllReports() {
+  await Promise.all([
+    loadReport('perhead',  'tblPerheadHead',  'tblPerheadBody',  'tblPerhead',  'perhead'),
+    loadReport('detailed', 'tblDetailedHead', 'tblDetailedBody', 'tblDetailed', 'detailed'),
+    loadReport('summary',  'tblSummaryHead',  'tblSummaryBody',  'tblSummary',  'summary'),
+    loadReport('monthly',  'tblMonthlyHead',  'tblMonthlyBody',  'tblMonthly',  'monthly'),
+  ]);
+}
+
+document.addEventListener('DOMContentLoaded', loadAllReports);
 </script>
 {% endblock %}

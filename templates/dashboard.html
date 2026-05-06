@@ -136,13 +136,13 @@ async function loadBar(filters) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => ` Rs ${ctx.raw.toLocaleString('en-IN')}`
+            label: ctx => ` Rs ${ctx.raw.toLocaleString('en-US')}`
           }
         }
       },
       scales: {
         x: { ticks: { color: '#8899aa' }, grid: { color: '#1e3a5f55' } },
-        y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-IN') }, grid: { color: '#1e3a5f55' } }
+        y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-US') }, grid: { color: '#1e3a5f55' } }
       }
     }
   });
