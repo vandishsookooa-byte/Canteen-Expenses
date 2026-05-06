@@ -91,7 +91,7 @@ def load_workbook_data() -> dict:
                                 "Expense sheet: PERIOD column not found — add a column named "
                                 "PERIOD, DATE, or FORTNIGHT to fix this"
                             )
-                            df["PERIOD"] = None
+                            df["PERIOD"] = "N/A"
 
                         # Resolve TOTAL column — try known alternatives
                         total_col = next((c for c in _TOTAL_ALTS if c in df.columns), None)
