@@ -87,7 +87,7 @@ def load_workbook_data() -> dict:
                         if period_col and period_col != "PERIOD":
                             df = df.rename(columns={period_col: "PERIOD"})
                         elif not period_col:
-                            logger.warning("Sheet %r: no PERIOD column found (columns: %s)", sheet, list(df.columns))
+                            logger.warning("Sheet %r: no PERIOD column found; check column names in your Excel", sheet)
                             df["PERIOD"] = None
 
                         # Resolve TOTAL column — try known alternatives
@@ -95,7 +95,7 @@ def load_workbook_data() -> dict:
                         if total_col and total_col != "TOTAL":
                             df = df.rename(columns={total_col: "TOTAL"})
                         elif not total_col:
-                            logger.warning("Sheet %r: no TOTAL column found (columns: %s)", sheet, list(df.columns))
+                            logger.warning("Sheet %r: no TOTAL column found; check column names in your Excel", sheet)
                             df["TOTAL"] = None
 
                         # Resolve ITEMS column — try known alternatives
@@ -119,14 +119,14 @@ def load_workbook_data() -> dict:
                         df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
                         if df.empty:
-                            logger.warning("Sheet %r (%r) loaded but has no valid data rows", sheet, actual_sheet)
+                            logger.warning("Sheet %r loaded but has no valid data rows", sheet)
                         else:
-                            logger.info("Sheet %r (%r): %d rows loaded", sheet, actual_sheet, len(df))
+                            logger.info("Sheet %r: %d rows loaded", sheet, len(df))
                     except Exception:
                         logger.error("Error parsing sheet %r", sheet, exc_info=True)
                         nationality_data[sheet] = pd.DataFrame()
                 else:
-                    logger.warning("Sheet %r not found in workbook. Available sheets: %s", sheet, sheets)
+                    logger.warning("Sheet %r not found in workbook; check sheet names in your Excel", sheet)
 
             missing = [s for s in NATIONALITY_SHEETS if s not in nationality_data or nationality_data[s].empty]
             if missing:
@@ -153,7 +153,7 @@ def load_workbook_data() -> dict:
                             if col in employees_df.columns:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
                             else:
-                                logger.warning("EMPLOYEES sheet: column %r not found (columns: %s)", col, list(employees_df.columns))
+                                logger.warning("EMPLOYEES sheet: expected column %r not found; check column names", col)
                                 employees_df[col] = 0
                     except Exception:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
