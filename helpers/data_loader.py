@@ -80,8 +80,8 @@ def load_workbook_data() -> dict:
                         df["UNIT PRICE"] = pd.to_numeric(df["UNIT PRICE"], errors="coerce").fillna(0)
                         df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
-                    except Exception as exc:
-                        logger.error("Error parsing sheet %r: %s", sheet, exc, exc_info=True)
+                    except Exception:
+                        logger.error("Error parsing sheet %r", sheet, exc_info=True)
                         nationality_data[sheet] = pd.DataFrame()
 
             employees_df = pd.DataFrame()
@@ -97,8 +97,8 @@ def load_workbook_data() -> dict:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
                             else:
                                 employees_df[col] = 0
-                    except Exception as exc:
-                        logger.error("Error parsing EMPLOYEES sheet: %s", exc, exc_info=True)
+                    except Exception:
+                        logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
 
             _cache = {"nationality": nationality_data, "employees": employees_df}
         except Exception:
