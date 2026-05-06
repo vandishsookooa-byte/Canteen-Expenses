@@ -87,7 +87,10 @@ def load_workbook_data() -> dict:
                         if period_col and period_col != "PERIOD":
                             df = df.rename(columns={period_col: "PERIOD"})
                         elif not period_col:
-                            logger.warning("Sheet %r: no PERIOD column found; check column names in your Excel", sheet)
+                            logger.warning(
+                                "Expense sheet: PERIOD column not found — add a column named "
+                                "PERIOD, DATE, or FORTNIGHT to fix this"
+                            )
                             df["PERIOD"] = None
 
                         # Resolve TOTAL column — try known alternatives
@@ -95,7 +98,10 @@ def load_workbook_data() -> dict:
                         if total_col and total_col != "TOTAL":
                             df = df.rename(columns={total_col: "TOTAL"})
                         elif not total_col:
-                            logger.warning("Sheet %r: no TOTAL column found; check column names in your Excel", sheet)
+                            logger.warning(
+                                "Expense sheet: TOTAL column not found — add a column named "
+                                "TOTAL, AMOUNT, or GRAND TOTAL to fix this"
+                            )
                             df["TOTAL"] = None
 
                         # Resolve ITEMS column — try known alternatives
@@ -119,18 +125,24 @@ def load_workbook_data() -> dict:
                         df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
                         if df.empty:
-                            logger.warning("Sheet %r loaded but has no valid data rows", sheet)
+                            logger.warning("Nationality expense sheet loaded but contains no valid data rows")
                         else:
-                            logger.info("Sheet %r: %d rows loaded", sheet, len(df))
+                            logger.info("Nationality expense sheet loaded: %d rows", len(df))
                     except Exception:
-                        logger.error("Error parsing sheet %r", sheet, exc_info=True)
+                        logger.error("Error parsing nationality expense sheet", exc_info=True)
                         nationality_data[sheet] = pd.DataFrame()
                 else:
-                    logger.warning("Sheet %r not found in workbook; check sheet names in your Excel", sheet)
+                    logger.warning(
+                        "Nationality sheet not found in workbook — check that your Excel has "
+                        "sheets named Bangladeshi, Malagasy, Indian, and Srilankan (or Sri Lankan)"
+                    )
 
             missing = [s for s in NATIONALITY_SHEETS if s not in nationality_data or nationality_data[s].empty]
             if missing:
-                logger.warning("No expense data loaded for: %s", missing)
+                logger.warning(
+                    "%d of %d nationality expense sheets are missing or empty",
+                    len(missing), len(NATIONALITY_SHEETS)
+                )
 
             employees_df = pd.DataFrame()
             for name in sheets:
@@ -153,7 +165,7 @@ def load_workbook_data() -> dict:
                             if col in employees_df.columns:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
                             else:
-                                logger.warning("EMPLOYEES sheet: expected column %r not found; check column names", col)
+                                logger.warning("EMPLOYEES sheet: expected nationality column not found; check column names")
                                 employees_df[col] = 0
                     except Exception:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
