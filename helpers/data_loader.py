@@ -53,7 +53,6 @@ def load_workbook_data() -> dict:
             return _cache
 
         _cache_path = path
-        _cache_mtime = current_mtime
         if not os.path.exists(path):
             logger.warning("Excel file not found")
             _cache = {"nationality": {}, "employees": pd.DataFrame()}
@@ -162,6 +161,7 @@ def load_workbook_data() -> dict:
                             df["UNIT PRICE"] = 0
                         df["PERIOD"] = df["PERIOD"].astype(str).str.strip()
                         df = df[df["PERIOD"].apply(_valid_period)]
+                        df["PERIOD"] = df["PERIOD"].apply(_normalise_period_str)
                         df["TOTAL"] = pd.to_numeric(df["TOTAL"], errors="coerce").fillna(0)
                         df["QTY"] = pd.to_numeric(df["QTY"], errors="coerce").fillna(0)
                         df["UNIT PRICE"] = pd.to_numeric(df["UNIT PRICE"], errors="coerce").fillna(0)
@@ -204,6 +204,7 @@ def load_workbook_data() -> dict:
                         employees_df = employees_df.rename(columns=_EMP_COL_ALIASES)
                         employees_df["PERIOD"] = employees_df["PERIOD"].astype(str).str.strip()
                         employees_df = employees_df[employees_df["PERIOD"].apply(_valid_period)]
+                        employees_df["PERIOD"] = employees_df["PERIOD"].apply(_normalise_period_str)
                         for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
                             if col in employees_df.columns:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
@@ -214,9 +215,16 @@ def load_workbook_data() -> dict:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
 
             _cache = {"nationality": nationality_data, "employees": employees_df}
+            _cache_mtime = current_mtime  # only update on a successful load
         except Exception:
-            logger.error("Failed to load workbook")
-            _cache = {"nationality": {}, "employees": pd.DataFrame()}
+            logger.error("Failed to load workbook", exc_info=True)
+            # Preserve previous cache data so stale data is served rather than
+            # empty data while the file is temporarily inaccessible (e.g. Excel
+            # has it locked during a save).  _cache_mtime is intentionally NOT
+            # updated here so that the next request detects a mismatch and
+            # retries immediately instead of waiting for the TTL to expire.
+            if not _cache:
+                _cache = {"nationality": {}, "employees": pd.DataFrame()}
         finally:
             _cache_loaded_at = time.monotonic()
 
@@ -244,8 +252,11 @@ def parse_period_date(period_str: str):
     if not period_str or period_str == "nan":
         return None, None
     try:
-        # Normalise separators: remove spaces around hyphens for splitting
         s = str(period_str).strip()
+        # Normalise Unicode dashes (en-dash U+2013, em-dash U+2014) to a plain
+        # ASCII hyphen so that Excel files that auto-substitute the character
+        # are handled the same as files that use a regular hyphen.
+        s = s.replace("\u2013", "-").replace("\u2014", "-")
         # Split on ' - ' first, then on plain '-' but watch for day.month.year-day.month.year
         if " - " in s:
             parts = s.split(" - ", 1)
@@ -276,6 +287,20 @@ def parse_period_date(period_str: str):
         return None, None
     except Exception:
         return None, None
+
+
+def _normalise_period_str(p: str) -> str:
+    """Return the canonical 'DD.MM.YYYY - DD.MM.YYYY' form of a period string.
+
+    Handles en-dashes, em-dashes, and missing spaces around the separator so
+    that all period values stored in the dataframe (and shown in the UI
+    dropdowns) are always in a single consistent format.  If the string cannot
+    be parsed it is returned unchanged.
+    """
+    start, end = parse_period_date(str(p))
+    if start and end:
+        return f"{start.strftime('%d.%m.%Y')} - {end.strftime('%d.%m.%Y')}"
+    return str(p)
 
 
 def _period_in_range(period_str: str, period_from: str | None, period_to: str | None) -> bool:
