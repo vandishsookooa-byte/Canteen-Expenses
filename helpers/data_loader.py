@@ -1,5 +1,6 @@
 """Data loading and parsing module for Canteen Expenses."""
 import os
+import re
 import logging
 import math
 import threading
@@ -80,6 +81,10 @@ def load_workbook_data() -> dict:
             _PERIOD_ALTS = ["PERIOD", "DATE", "FORTNIGHT", "FORTNIGHT PERIOD", "BILLING PERIOD", "PERIOD DATE"]
             _TOTAL_ALTS = ["TOTAL", "AMOUNT", "TOTAL AMOUNT", "GRAND TOTAL", "TOTAL (RS)", "TOTAL RS", "TOTAL EXPENDITURE"]
             _ITEMS_ALTS = ["ITEMS", "ITEM", "ITEM NAME", "DESCRIPTION", "PARTICULARS", "FOOD ITEM"]
+            # Regex that matches any cell value formatted as a period range: DD.MM.YYYY - DD.MM.YYYY
+            _PERIOD_CONTENT_RE = re.compile(
+                r"^\d{2}\.\d{2}\.\d{4}\s*[-–]\s*\d{2}\.\d{2}\.\d{4}$"
+            )
 
             nationality_data: dict = {}
             for sheet in NATIONALITY_SHEETS:
@@ -89,14 +94,32 @@ def load_workbook_data() -> dict:
                         df = xl.parse(actual_sheet)
                         df.columns = [str(c).strip().upper() for c in df.columns]
 
-                        # Resolve PERIOD column — try known alternatives
+                        # Resolve PERIOD column — try known alternatives first, then
+                        # fall back to content-based detection (any column whose values
+                        # look like "DD.MM.YYYY - DD.MM.YYYY" or "DD.MM.YYYY-DD.MM.YYYY").
                         period_col = next((c for c in _PERIOD_ALTS if c in df.columns), None)
                         if period_col and period_col != "PERIOD":
                             df = df.rename(columns={period_col: "PERIOD"})
                         elif not period_col:
+                            # Content-based fallback: find first column whose non-null
+                            # values match the period date-range pattern
+                            for _col in df.columns:
+                                _sample = df[_col].dropna().astype(str).str.strip()
+                                if _sample.str.match(_PERIOD_CONTENT_RE).any():
+                                    df = df.rename(columns={_col: "PERIOD"})
+                                    period_col = "PERIOD"
+                                    logger.info(
+                                        "Auto-detected PERIOD column from content: '%s' in sheet '%s'",
+                                        _col, actual_sheet
+                                    )
+                                    break
+
+                        if not period_col:
                             logger.warning(
-                                "Expense sheet: PERIOD column not found — add a column named "
-                                "PERIOD, DATE, or FORTNIGHT to fix this"
+                                "Expense sheet '%s': PERIOD column not found (columns present: %s) — "
+                                "add a column named PERIOD, DATE, or FORTNIGHT, or ensure a column "
+                                "contains values like '01.04.2026 - 15.04.2026'",
+                                actual_sheet, list(df.columns)
                             )
                             df["PERIOD"] = "N/A"
 
