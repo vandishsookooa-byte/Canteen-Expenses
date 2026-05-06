@@ -2,6 +2,7 @@ import os
 import io
 import csv
 import json
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -45,6 +46,42 @@ def rs_format(value):
 # ---------------------------------------------------------------------------
 # Excel helpers
 # ---------------------------------------------------------------------------
+
+# Alternative column names used for the period column across sheets
+_PERIOD_COL_CANDIDATES = ['PERIOD', 'SN', 'DATE', 'MONTH', 'WEEK', 'FORTNIGHTLY']
+
+# Regex pattern that matches "DD.MM.YYYY" at the start of a cell value
+_DATE_RANGE_RE = re.compile(r'^\d{2}\.\d{2}\.\d{4}')
+
+
+def _normalise_period(value: str) -> str:
+    """Ensure a period string has spaces around the dash separator.
+
+    Handles both "DD.MM.YYYY - DD.MM.YYYY" and "DD.MM.YYYY-DD.MM.YYYY".
+    """
+    # Replace dash(es) surrounded by optional whitespace with ' - '
+    return re.sub(r'\s*-\s*', ' - ', value.strip())
+
+
+def _detect_period_col(df: pd.DataFrame) -> str | None:
+    """Return the name of the column that holds period/date-range strings.
+
+    Tries known candidate names first, then falls back to scanning every
+    column's values for a DD.MM.YYYY date-range pattern.
+    """
+    cols = list(df.columns)
+    # 1. Try well-known names
+    for candidate in _PERIOD_COL_CANDIDATES:
+        if candidate in cols:
+            return candidate
+    # 2. Scan columns for date-range-like content
+    for col in cols:
+        sample = df[col].dropna().astype(str).head(10)
+        if sample.str.match(r'^\d{2}\.\d{2}\.\d{4}').any():
+            return col
+    return None
+
+
 def _parse_start(period: str) -> datetime:
     """Return datetime for the start of a period string 'DD.MM.YYYY - DD.MM.YYYY'."""
     try:
@@ -64,15 +101,32 @@ def _load_data() -> dict:
             if sheet in xl.sheet_names:
                 df = xl.parse(sheet)
                 df.columns = [str(c).strip().upper() for c in df.columns]
-                # Normalise PERIOD column
+                # Find whichever column holds the period, rename it to PERIOD
+                period_col = _detect_period_col(df)
+                if period_col and period_col != 'PERIOD':
+                    df = df.rename(columns={period_col: 'PERIOD'})
+                # Normalise PERIOD values (strip whitespace, uniform dash spacing)
                 if 'PERIOD' in df.columns:
-                    df['PERIOD'] = df['PERIOD'].astype(str).str.strip()
+                    df['PERIOD'] = (
+                        df['PERIOD']
+                        .astype(str)
+                        .str.strip()
+                        .apply(lambda v: _normalise_period(v) if _DATE_RANGE_RE.match(v) else v)
+                    )
                 data[sheet] = df
         if 'EMPLOYEES' in xl.sheet_names:
             emp = xl.parse('EMPLOYEES')
             emp.columns = [str(c).strip().upper() for c in emp.columns]
+            period_col = _detect_period_col(emp)
+            if period_col and period_col != 'PERIOD':
+                emp = emp.rename(columns={period_col: 'PERIOD'})
             if 'PERIOD' in emp.columns:
-                emp['PERIOD'] = emp['PERIOD'].astype(str).str.strip()
+                emp['PERIOD'] = (
+                    emp['PERIOD']
+                    .astype(str)
+                    .str.strip()
+                    .apply(lambda v: _normalise_period(v) if _DATE_RANGE_RE.match(v) else v)
+                )
             data['EMPLOYEES'] = emp
     except Exception as exc:
         print(f'[ERROR] loading Excel: {exc}')
