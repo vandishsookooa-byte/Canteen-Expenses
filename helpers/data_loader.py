@@ -15,6 +15,7 @@ EMPLOYEE_COLUMNS = ["PERIOD", "BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
 
 _cache: dict = {}
 _cache_path: str = ""
+_cache_mtime: float = 0.0
 _cache_lock = threading.Lock()
 
 
@@ -23,14 +24,20 @@ def _get_excel_path() -> str:
 
 
 def load_workbook_data() -> dict:
-    """Load and cache all sheets from the Excel workbook."""
-    global _cache, _cache_path
+    """Load and cache all sheets from the Excel workbook.
+
+    The cache is invalidated automatically whenever the Excel file is modified
+    on disk, so edits take effect on the next request without a server restart.
+    """
+    global _cache, _cache_path, _cache_mtime
     path = _get_excel_path()
     with _cache_lock:
-        if _cache and _cache_path == path:
+        current_mtime = os.path.getmtime(path) if os.path.exists(path) else 0.0
+        if _cache and _cache_path == path and current_mtime == _cache_mtime:
             return _cache
 
         _cache_path = path
+        _cache_mtime = current_mtime
         if not os.path.exists(path):
             logger.warning("Excel file not found")
             _cache = {"nationality": {}, "employees": pd.DataFrame()}
