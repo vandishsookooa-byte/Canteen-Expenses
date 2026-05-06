@@ -84,7 +84,8 @@ async function loadTable() {
 
   dt = $('#employeesTable').DataTable({
     order: [],
-    pageLength: 20,
+    pageLength: 25,
+    lengthMenu: [10, 25, 50, 100],
     language: { emptyTable: 'No data available' }
   });
 }

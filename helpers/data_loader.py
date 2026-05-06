@@ -44,16 +44,35 @@ def load_workbook_data() -> dict:
             sheet_lookup = {s.strip().lower(): s for s in sheets}
 
             def _find_sheet(target: str):
-                """Return actual sheet name matching target (case-insensitive)."""
-                exact = target if target in sheets else None
-                if exact:
-                    return exact
-                return sheet_lookup.get(target.strip().lower())
+                """Return actual sheet name matching target.
+
+                Tries in order:
+                1. Exact match  (e.g. 'Srilankan' == 'Srilankan')
+                2. Case-insensitive match  ('srilankan' == 'srilankan')
+                3. Space/hyphen-insensitive match so that canonical name
+                   'Srilankan' finds an Excel sheet called 'Sri Lankan'.
+                """
+                if target in sheets:
+                    return target
+                match = sheet_lookup.get(target.strip().lower())
+                if match:
+                    return match
+                # Fallback: collapse spaces and hyphens then compare
+                t_norm = target.strip().lower().replace(" ", "").replace("-", "")
+                for key, actual in sheet_lookup.items():
+                    if key.replace(" ", "").replace("-", "") == t_norm:
+                        return actual
+                return None
 
             _BAD_PERIODS = {"", "nan", "none", "nat", "period"}
 
             def _valid_period(p: str) -> bool:
                 return p.strip().lower() not in _BAD_PERIODS
+
+            # Alternative column names used in some Excel files
+            _PERIOD_ALTS = ["PERIOD", "DATE", "FORTNIGHT", "FORTNIGHT PERIOD", "BILLING PERIOD", "PERIOD DATE"]
+            _TOTAL_ALTS = ["TOTAL", "AMOUNT", "TOTAL AMOUNT", "GRAND TOTAL", "TOTAL (RS)", "TOTAL RS", "TOTAL EXPENDITURE"]
+            _ITEMS_ALTS = ["ITEMS", "ITEM", "ITEM NAME", "DESCRIPTION", "PARTICULARS", "FOOD ITEM"]
 
             nationality_data: dict = {}
             for sheet in NATIONALITY_SHEETS:
@@ -62,11 +81,30 @@ def load_workbook_data() -> dict:
                     try:
                         df = xl.parse(actual_sheet)
                         df.columns = [str(c).strip().upper() for c in df.columns]
-                        for col in ["PERIOD", "TOTAL"]:
-                            if col not in df.columns:
-                                df[col] = None
-                        if "ITEMS" not in df.columns:
+
+                        # Resolve PERIOD column — try known alternatives
+                        period_col = next((c for c in _PERIOD_ALTS if c in df.columns), None)
+                        if period_col and period_col != "PERIOD":
+                            df = df.rename(columns={period_col: "PERIOD"})
+                        elif not period_col:
+                            logger.warning("Sheet %r: no PERIOD column found (columns: %s)", sheet, list(df.columns))
+                            df["PERIOD"] = None
+
+                        # Resolve TOTAL column — try known alternatives
+                        total_col = next((c for c in _TOTAL_ALTS if c in df.columns), None)
+                        if total_col and total_col != "TOTAL":
+                            df = df.rename(columns={total_col: "TOTAL"})
+                        elif not total_col:
+                            logger.warning("Sheet %r: no TOTAL column found (columns: %s)", sheet, list(df.columns))
+                            df["TOTAL"] = None
+
+                        # Resolve ITEMS column — try known alternatives
+                        items_col = next((c for c in _ITEMS_ALTS if c in df.columns), None)
+                        if items_col and items_col != "ITEMS":
+                            df = df.rename(columns={items_col: "ITEMS"})
+                        elif not items_col:
                             df["ITEMS"] = ""
+
                         if "QTY" not in df.columns:
                             df["QTY"] = 0
                         if "UNIT" not in df.columns:
@@ -80,9 +118,19 @@ def load_workbook_data() -> dict:
                         df["UNIT PRICE"] = pd.to_numeric(df["UNIT PRICE"], errors="coerce").fillna(0)
                         df["nationality"] = sheet  # always use canonical name
                         nationality_data[sheet] = df
+                        if df.empty:
+                            logger.warning("Sheet %r (%r) loaded but has no valid data rows", sheet, actual_sheet)
+                        else:
+                            logger.info("Sheet %r (%r): %d rows loaded", sheet, actual_sheet, len(df))
                     except Exception:
                         logger.error("Error parsing sheet %r", sheet, exc_info=True)
                         nationality_data[sheet] = pd.DataFrame()
+                else:
+                    logger.warning("Sheet %r not found in workbook. Available sheets: %s", sheet, sheets)
+
+            missing = [s for s in NATIONALITY_SHEETS if s not in nationality_data or nationality_data[s].empty]
+            if missing:
+                logger.warning("No expense data loaded for: %s", missing)
 
             employees_df = pd.DataFrame()
             for name in sheets:
@@ -90,12 +138,22 @@ def load_workbook_data() -> dict:
                     try:
                         employees_df = xl.parse(name)
                         employees_df.columns = [str(c).strip().upper() for c in employees_df.columns]
+                        # Normalise "SRI LANKAN" (two-word Excel heading) → "SRILANKAN"
+                        # so all downstream lookups work regardless of how the column is named.
+                        _EMP_COL_ALIASES = {
+                            "SRI LANKAN": "SRILANKAN",
+                            "SRI-LANKAN": "SRILANKAN",
+                            "SRILANKA": "SRILANKAN",
+                            "SRI LANKA": "SRILANKAN",
+                        }
+                        employees_df = employees_df.rename(columns=_EMP_COL_ALIASES)
                         employees_df["PERIOD"] = employees_df["PERIOD"].astype(str).str.strip()
                         employees_df = employees_df[employees_df["PERIOD"].apply(_valid_period)]
                         for col in ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]:
                             if col in employees_df.columns:
                                 employees_df[col] = pd.to_numeric(employees_df[col], errors="coerce").fillna(0)
                             else:
+                                logger.warning("EMPLOYEES sheet: column %r not found (columns: %s)", col, list(employees_df.columns))
                                 employees_df[col] = 0
                     except Exception:
                         logger.error("Error parsing EMPLOYEES sheet", exc_info=True)
