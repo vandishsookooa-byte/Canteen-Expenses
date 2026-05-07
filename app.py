@@ -131,6 +131,22 @@ def api_periods():
         return jsonify([])
 
 
+@app.route("/api/expense_periods")
+def api_expense_periods():
+    """Return expense-only periods with the latest one flagged.
+
+    Used by the dashboard to dynamically populate period dropdowns so that
+    new periods added to Canteen.xlsx are reflected without a full page
+    reload.
+    """
+    try:
+        periods = get_expense_periods()
+        return jsonify({"periods": periods, "latest": periods[-1] if periods else ""})
+    except Exception as exc:
+        logger.error("api_expense_periods error: %s", exc)
+        return jsonify({"periods": [], "latest": ""})
+
+
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
     """Clear the in-memory cache so the next request re-reads Canteen.xlsx."""

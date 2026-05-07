@@ -77,10 +77,30 @@ function getFilters() {
   };
 }
 
+// Tracks the latest expense period; populated dynamically from the API.
+let _latestPeriod = "{{ latest_period }}";
+
+function _rebuildPeriodSelects(periods, latest) {
+  const opts = '<option value="">All</option>' +
+    periods.map(p => `<option value="${p}"${p === latest ? ' selected' : ''}>${p}</option>`).join('');
+  document.getElementById('periodFrom').innerHTML = opts;
+  document.getElementById('periodTo').innerHTML = opts;
+  _latestPeriod = latest || _latestPeriod;
+}
+
+async function refreshPeriodSelects() {
+  try {
+    const res = await fetchFresh('/api/expense_periods');
+    const data = await res.json();
+    _rebuildPeriodSelects(data.periods || [], data.latest || '');
+  } catch (_) {
+    // keep server-rendered fallback
+  }
+}
+
 function resetFilters() {
-  const latest = "{{ latest_period }}";
-  document.getElementById('periodFrom').value = latest;
-  document.getElementById('periodTo').value = latest;
+  document.getElementById('periodFrom').value = _latestPeriod;
+  document.getElementById('periodTo').value = _latestPeriod;
   loadDashboard();
 }
 
@@ -157,6 +177,9 @@ async function loadDashboard() {
   await Promise.all([loadKPI(filters), loadDonut(filters), loadBar(filters)]);
 }
 
-document.addEventListener('DOMContentLoaded', loadDashboard);
+document.addEventListener('DOMContentLoaded', async () => {
+  await refreshPeriodSelects();
+  loadDashboard();
+});
 </script>
 {% endblock %}

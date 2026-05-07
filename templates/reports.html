@@ -184,6 +184,20 @@ async function loadAllReports() {
   ]);
 }
 
-document.addEventListener('DOMContentLoaded', loadAllReports);
+async function refreshPeriodSelects() {
+  try {
+    const res = await fetch('/api/periods', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+    const periods = await res.json();
+    const opts = '<option value="">All</option>' +
+      periods.map(p => `<option value="${p}">${p}</option>`).join('');
+    document.getElementById('periodFrom').innerHTML = opts;
+    document.getElementById('periodTo').innerHTML = opts;
+  } catch (_) {}
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await refreshPeriodSelects();
+  loadAllReports();
+});
 </script>
 {% endblock %}
