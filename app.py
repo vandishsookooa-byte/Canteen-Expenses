@@ -31,6 +31,19 @@ import os as _os
 app.secret_key = _os.environ.get("SECRET_KEY", _os.urandom(32))
 
 
+# Prevent stale browser/proxy caching for dynamic routes so Excel updates are
+# reflected immediately after refresh.
+@app.after_request
+def add_cache_headers(response):
+    path = request.path or ""
+    dynamic_pages = {"dashboard", "employees", "trends", "comparison", "reports"}
+    if path.startswith("/api/") or request.endpoint in dynamic_pages:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # ─── Helper ────────────────────────────────────────────────────────────────────
 
 def _get_filter_args():

@@ -88,8 +88,12 @@ function buildQuery(obj) {
   return Object.entries(obj).filter(([,v]) => v).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 }
 
+function fetchFresh(url) {
+  return fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+}
+
 async function loadKPI(filters) {
-  const res = await fetch('/api/kpi?' + buildQuery(filters));
+  const res = await fetchFresh('/api/kpi?' + buildQuery(filters));
   const d = await res.json();
   document.getElementById('kpiEmployees').textContent = d.total_employees ?? '—';
   document.getElementById('kpiExpenditure').textContent = d.total_expenditure_fmt ?? '—';
@@ -99,7 +103,7 @@ async function loadKPI(filters) {
 }
 
 async function loadDonut(filters) {
-  const res = await fetch('/api/charts/nationality?' + buildQuery(filters));
+  const res = await fetchFresh('/api/charts/nationality?' + buildQuery(filters));
   const d = await res.json();
   if (donutChart) donutChart.destroy();
   const ctx = document.getElementById('donutChart').getContext('2d');
@@ -122,7 +126,7 @@ async function loadDonut(filters) {
 }
 
 async function loadBar(filters) {
-  const res = await fetch('/api/charts/expenditure?' + buildQuery(filters));
+  const res = await fetchFresh('/api/charts/expenditure?' + buildQuery(filters));
   const d = await res.json();
   if (barChart) barChart.destroy();
   const ctx = document.getElementById('barChart').getContext('2d');
