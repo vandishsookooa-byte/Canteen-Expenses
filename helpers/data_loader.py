@@ -768,13 +768,14 @@ def get_item_comparison(nationality: str | None = None, period_from: str | None 
             emp_count = nat_emp.get(nat, 0)
             per_head = total / emp_count if emp_count > 0 else 0.0
             qty_per_head = qty / emp_count if emp_count > 0 else 0.0
-            # Dominant unit for this item/nationality (most frequent non-null value)
+            # Dominant unit for this item/nationality (most frequent non-empty value)
             unit = ""
             if "UNIT" in grp.columns:
                 unit_series = grp["UNIT"].dropna().astype(str).str.strip()
-                unit_series = unit_series[unit_series.str.lower().notna() & (unit_series != "")]
+                unit_series = unit_series[unit_series != ""]
                 if not unit_series.empty:
-                    unit = unit_series.mode().iloc[0] if not unit_series.mode().empty else unit_series.iloc[0]
+                    mode = unit_series.mode()
+                    unit = mode.iloc[0] if not mode.empty else unit_series.iloc[0]
             all_items[item_key][nat] = {
                 "qty": round(qty, 2),
                 "unit": str(unit),

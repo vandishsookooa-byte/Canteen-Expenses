@@ -257,7 +257,7 @@ function renderUnitPerHead(d) {
   let hRow = '<tr><th style="vertical-align:middle">Item</th><th style="text-align:center;vertical-align:middle">Unit</th>';
   nats.forEach((nat, i) => {
     const color = NAT_COLORS[i % NAT_COLORS.length];
-    hRow += `<th style="text-align:right;border-bottom:2px solid ${color}">${nat}<br><small style="font-weight:400;opacity:.7">${(natEmp[nat] || 0).toLocaleString('en-US')} emp</small></th>`;
+    hRow += `<th style="text-align:right;border-bottom:2px solid ${color}">${nat}<br><small style="font-weight:400;opacity:.7">${(natEmp[nat] || 0).toLocaleString('en-US')} employees</small></th>`;
   });
   hRow += '</tr>';
   thead.innerHTML = hRow;
