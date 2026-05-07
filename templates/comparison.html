@@ -53,7 +53,7 @@
 </div>
 
 <!-- ── Item-by-item consumption comparison ── -->
-<div class="card">
+<div class="card" style="margin-bottom:1.5rem;">
   <div class="card-header">Item Consumption by Nationality</div>
   <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">
     Monitor each item consumed across nationalities — quantities, cost and per-head spend.
@@ -67,6 +67,22 @@
     </table>
   </div>
 </div>
+
+<!-- ── Per-head unit consumption table ── -->
+<div class="card">
+  <div class="card-header">Unit Consumption Per Head</div>
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">
+    Quantity consumed per employee by item and nationality — no cost, units only.
+  </p>
+  <div class="table-responsive">
+    <table id="unitPerHeadTable" class="data-table">
+      <thead id="unitPerHeadHead"></thead>
+      <tbody id="unitPerHeadBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -74,6 +90,7 @@
 let compChart = null;
 let compDT = null;
 let itemDT  = null;
+let unitDT  = null;
 
 const NAT_COLORS = ['#3a86ff', '#06d6a0', '#ffd166', '#ef233c'];
 
@@ -156,6 +173,7 @@ async function loadItemComparison() {
   if (d.error || !d.items) {
     document.getElementById('itemTableBody').innerHTML =
       '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    renderUnitPerHead(null);
     return;
   }
 
@@ -184,6 +202,7 @@ async function loadItemComparison() {
   if (!d.items.length) {
     const cols = nats.length * 3 + 2;
     tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center empty-state">No items found</td></tr>`;
+    renderUnitPerHead(null);
     return;
   }
 
@@ -208,6 +227,59 @@ async function loadItemComparison() {
     order: [[colCount - 1, 'desc']],
     pageLength: 25,
     language: { emptyTable: 'No items found' }
+  });
+
+  // Pass data to the per-head unit table
+  renderUnitPerHead(d);
+}
+
+/* ── Per-head unit consumption table ── */
+function renderUnitPerHead(d) {
+  if (unitDT) { unitDT.destroy(); unitDT = null; }
+  const thead = document.getElementById('unitPerHeadHead');
+  const tbody = document.getElementById('unitPerHeadBody');
+
+  if (!d || !d.items || !d.items.length) {
+    thead.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    return;
+  }
+
+  const nats = d.nationalities || [];
+  const natEmp = d.nat_employees || {};
+
+  // Header: Item | Unit | [Nat: qty/head] ...
+  let hRow = '<tr><th style="vertical-align:middle">Item</th><th style="text-align:center;vertical-align:middle">Unit</th>';
+  nats.forEach((nat, i) => {
+    const color = NAT_COLORS[i % NAT_COLORS.length];
+    hRow += `<th style="text-align:right;border-bottom:2px solid ${color}">${nat}<br><small style="font-weight:400;opacity:.7">${(natEmp[nat] || 0).toLocaleString('en-US')} emp</small></th>`;
+  });
+  hRow += '</tr>';
+  thead.innerHTML = hRow;
+
+  // Body rows
+  tbody.innerHTML = d.items.map(row => {
+    const unit = row.unit || '';
+    let cells = `<td style="white-space:nowrap;font-weight:600">${row.item}</td>`;
+    cells += `<td style="text-align:center;color:var(--text-secondary);font-size:12px">${unit || '—'}</td>`;
+    nats.forEach(nat => {
+      const nd = row.by_nationality[nat];
+      if (nd && nd.qty_per_head != null && nd.qty_per_head > 0) {
+        const val = nd.qty_per_head % 1 === 0
+          ? nd.qty_per_head.toLocaleString('en-US')
+          : nd.qty_per_head.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+        cells += `<td class="num-cell">${val}</td>`;
+      } else {
+        cells += `<td class="num-cell" style="color:var(--text-muted)">—</td>`;
+      }
+    });
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  unitDT = $('#unitPerHeadTable').DataTable({
+    order: [],
+    pageLength: 25,
+    language: { emptyTable: 'No data found' }
   });
 }
 

@@ -761,8 +761,18 @@ def get_item_comparison(nationality: str | None = None, period_from: str | None 
             total = float(grp["TOTAL"].sum())
             emp_count = nat_emp.get(nat, 0)
             per_head = total / emp_count if emp_count > 0 else 0.0
+            qty_per_head = qty / emp_count if emp_count > 0 else 0.0
+            # Dominant unit for this item/nationality (most frequent non-null value)
+            unit = ""
+            if "UNIT" in grp.columns:
+                unit_series = grp["UNIT"].dropna().astype(str).str.strip()
+                unit_series = unit_series[unit_series.str.lower().notna() & (unit_series != "")]
+                if not unit_series.empty:
+                    unit = unit_series.mode().iloc[0] if not unit_series.mode().empty else unit_series.iloc[0]
             all_items[item_key][nat] = {
                 "qty": round(qty, 2),
+                "unit": str(unit),
+                "qty_per_head": round(qty_per_head, 3),
                 "total": round(total, 2),
                 "total_fmt": format_rs(total),
                 "per_head": round(per_head, 2),
@@ -778,8 +788,12 @@ def get_item_comparison(nationality: str | None = None, period_from: str | None 
     items_list = []
     for item_name, by_nat in sorted_items:
         grand_total = item_grand_total(by_nat)
+        # Derive dominant unit for the item across all nationalities
+        units = [v["unit"] for v in by_nat.values() if v.get("unit")]
+        dominant_unit = max(set(units), key=units.count) if units else ""
         items_list.append({
             "item": item_name,
+            "unit": dominant_unit,
             "by_nationality": by_nat,
             "grand_total": round(grand_total, 2),
             "grand_total_fmt": format_rs(grand_total),
