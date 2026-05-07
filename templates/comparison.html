@@ -7,12 +7,12 @@
   <label>From Period:</label>
   <select id="periodFrom" class="form-select">
     <option value="">All</option>
-    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
   </select>
   <label>To Period:</label>
   <select id="periodTo" class="form-select">
     <option value="">All</option>
-    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
   </select>
   <label>Nationality:</label>
   <select id="natFilter" class="form-select">
@@ -91,14 +91,19 @@ let compChart = null;
 let compDT = null;
 let itemDT  = null;
 let unitDT  = null;
+let latestExpensePeriod = "{{ latest_period }}";
 
 const NAT_COLORS = ['#3a86ff', '#06d6a0', '#ffd166', '#ef233c'];
 
 function resetFilters() {
-  document.getElementById('periodFrom').value = '';
-  document.getElementById('periodTo').value = '';
+  document.getElementById('periodFrom').value = latestExpensePeriod || '';
+  document.getElementById('periodTo').value = latestExpensePeriod || '';
   document.getElementById('natFilter').value = '';
   loadAll();
+}
+
+function fetchFresh(url) {
+  return fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
 }
 
 function buildQuery() {
@@ -114,7 +119,7 @@ function buildQuery() {
 
 /* ── Summary chart + table ── */
 async function loadComparison() {
-  const res  = await fetch('/api/comparison?' + buildQuery());
+  const res  = await fetchFresh('/api/comparison?' + buildQuery());
   const rows = await res.json();
 
   if (compChart) compChart.destroy();
@@ -167,7 +172,7 @@ async function loadComparison() {
 
 /* ── Item comparison table ── */
 async function loadItemComparison() {
-  const res  = await fetch('/api/items/comparison?' + buildQuery());
+  const res  = await fetchFresh('/api/items/comparison?' + buildQuery());
   const d    = await res.json();
 
   if (d.error || !d.items) {
@@ -289,12 +294,20 @@ async function loadAll() {
 
 async function refreshPeriodSelects() {
   try {
-    const res = await fetch('/api/periods', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-    const periods = await res.json();
+    const selectedFrom = document.getElementById('periodFrom').value;
+    const selectedTo = document.getElementById('periodTo').value;
+    const res = await fetchFresh('/api/expense_periods');
+    const data = await res.json();
+    const periods = data.periods || [];
+    latestExpensePeriod = data.latest || latestExpensePeriod;
+    const nextFrom = periods.includes(selectedFrom) ? selectedFrom : (latestExpensePeriod || '');
+    const nextTo = periods.includes(selectedTo) ? selectedTo : (latestExpensePeriod || '');
     const opts = '<option value="">All</option>' +
       periods.map(p => `<option value="${p}">${p}</option>`).join('');
     document.getElementById('periodFrom').innerHTML = opts;
     document.getElementById('periodTo').innerHTML = opts;
+    document.getElementById('periodFrom').value = nextFrom;
+    document.getElementById('periodTo').value = nextTo;
   } catch (e) { console.error('Period refresh failed:', e); }
 }
 

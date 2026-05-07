@@ -574,7 +574,11 @@ def get_trend_data(nationality: str | None = None, period_from: str | None = Non
     }
 
 
-def get_comparison_data(period_from: str | None = None, period_to: str | None = None) -> list:
+def get_comparison_data(
+    period_from: str | None = None,
+    period_to: str | None = None,
+    nationality: str | None = None,
+) -> list:
     """Return comparison table data per nationality."""
     employees = get_employees(period_from=period_from, period_to=period_to)
     rows = []
@@ -586,7 +590,9 @@ def get_comparison_data(period_from: str | None = None, period_to: str | None = 
         "Srilankan": "SRILANKAN",
     }
 
-    for nat in NATIONALITY_SHEETS:
+    targets = [nationality] if nationality else NATIONALITY_SHEETS
+
+    for nat in targets:
         expenses = get_all_expenses(nationality=nat, period_from=period_from, period_to=period_to)
         total_exp = float(expenses["TOTAL"].sum()) if not expenses.empty else 0.0
 

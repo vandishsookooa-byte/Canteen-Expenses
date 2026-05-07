@@ -109,8 +109,10 @@ def trends():
 @app.route("/comparison")
 def comparison():
     periods = get_periods()
+    expense_periods = get_expense_periods()
+    latest = expense_periods[-1] if expense_periods else ""
     nationalities = get_nationality_sheets() or NATIONALITY_SHEETS
-    return render_template("comparison.html", periods=periods, nationalities=nationalities)
+    return render_template("comparison.html", periods=periods, nationalities=nationalities, latest_period=latest)
 
 
 @app.route("/reports")
@@ -253,8 +255,8 @@ def api_employees():
 @app.route("/api/comparison")
 def api_comparison():
     try:
-        period_from, period_to, _ = _get_filter_args()
-        return jsonify(get_comparison_data(period_from=period_from, period_to=period_to))
+        period_from, period_to, nationality = _get_filter_args()
+        return jsonify(get_comparison_data(period_from=period_from, period_to=period_to, nationality=nationality))
     except Exception as exc:
         logger.error("api_comparison error: %s", exc)
         return jsonify({"error": "An internal error occurred"})
