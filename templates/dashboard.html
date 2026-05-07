@@ -93,8 +93,9 @@ async function refreshPeriodSelects() {
     const res = await fetchFresh('/api/expense_periods');
     const data = await res.json();
     _rebuildPeriodSelects(data.periods || [], data.latest || '');
-  } catch (_) {
+  } catch (e) {
     // keep server-rendered fallback
+    console.error('Period refresh failed:', e);
   }
 }
 
