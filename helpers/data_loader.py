@@ -19,7 +19,7 @@ EMPLOYEE_COLUMNS = ["PERIOD", "BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
 # whichever comes first.  The TTL ensures updates are always picked up even
 # on file systems / OS combinations where mtime resolution is coarse or the
 # file is replaced without changing its mtime.
-CACHE_TTL_SECONDS: int = 30
+CACHE_TTL_SECONDS: int = max(0, int(os.environ.get("CACHE_TTL_SECONDS", "5")))
 
 _cache: dict = {}
 _cache_path: str = ""
@@ -29,7 +29,14 @@ _cache_lock = threading.Lock()
 
 
 def _get_excel_path() -> str:
-    return os.environ.get("EXCEL_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "Canteen.xlsx"))
+    env_path = os.environ.get("EXCEL_PATH")
+    if env_path:
+        # Be tolerant to values copied with quotes, e.g.
+        # "C:\Users\transport\Desktop\Canteen Expenses\Canteen.xlsx"
+        cleaned = env_path.strip().strip("'").strip('"')
+        cleaned = os.path.expandvars(os.path.expanduser(cleaned))
+        return os.path.normpath(cleaned)
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), "Canteen.xlsx")
 
 
 def load_workbook_data() -> dict:
