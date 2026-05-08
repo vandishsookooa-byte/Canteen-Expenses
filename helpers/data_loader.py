@@ -695,10 +695,10 @@ def get_item_monthly_trend_data(
             if prev_value is not None:
                 if prev_value == 0:
                     if current_value > 0:
-                        pct_change = 100.0
-                        direction = "up"
+                        direction = "new"
                     else:
                         pct_change = 0.0
+                        direction = "flat"
                 else:
                     pct_change = ((current_value - prev_value) / prev_value) * 100.0
                     if pct_change > 0:

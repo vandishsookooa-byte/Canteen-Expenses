@@ -122,6 +122,11 @@ function renderItemTrendTable(d) {
   body.innerHTML = d.items.map(row => {
     let cells = `<td class="trend-item-cell">${escapeHtml(row.item)}</td>`;
     (row.months || []).forEach(month => {
+      if (month.direction === 'new') {
+        cells += '<td><span class="trend-pill trend-pill--up"><span class="trend-arrow">▲</span>New</span></td>';
+        return;
+      }
+
       if (month.pct_change == null) {
         cells += '<td><span class="trend-pill trend-pill--empty">—</span></td>';
         return;
