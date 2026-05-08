@@ -366,6 +366,38 @@ def get_employees(period_from: str | None = None, period_to: str | None = None) 
     return df.copy()
 
 
+def _employee_snapshot_row(
+    employees: pd.DataFrame,
+    period_from: str | None = None,
+    period_to: str | None = None,
+):
+    """Return the single employee row that best represents the selected period context."""
+    if employees.empty or "PERIOD" not in employees.columns:
+        return None
+
+    # Exact-period selection should always use that exact row.
+    if period_from and period_to and period_from == period_to:
+        exact = employees[employees["PERIOD"] == period_from]
+        if not exact.empty:
+            return exact.iloc[-1]
+
+    # Prefer explicit selector endpoints when they exist in the filtered frame.
+    if period_to:
+        end_match = employees[employees["PERIOD"] == period_to]
+        if not end_match.empty:
+            return end_match.iloc[-1]
+    if period_from:
+        start_match = employees[employees["PERIOD"] == period_from]
+        if not start_match.empty:
+            return start_match.iloc[-1]
+
+    # Fallback: latest period within the already-filtered employee rows.
+    temp = employees.copy()
+    temp["_sort"] = temp["PERIOD"].apply(lambda p: parse_period_date(str(p))[0] or date.min)
+    temp = temp.sort_values("_sort")
+    return temp.iloc[-1]
+
+
 def get_periods() -> list:
     """Return sorted list of all unique parseable periods found across all sheets (including EMPLOYEES)."""
     data = load_workbook_data()
@@ -459,6 +491,7 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
     """Return KPI dict for dashboard."""
     expenses = get_all_expenses(period_from=period_from, period_to=period_to)
     employees = get_employees(period_from=period_from, period_to=period_to)
+    employee_snapshot = _employee_snapshot_row(employees, period_from=period_from, period_to=period_to)
 
     total_expenditure = float(expenses["TOTAL"].sum()) if not expenses.empty else 0.0
 
@@ -466,10 +499,8 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
     nat_col_keys = ["BANGLADESHI", "INDIAN", "MALAGASY", "SRILANKAN"]
     nat_cols = [c for c in nat_col_keys if not employees.empty and c in employees.columns]
     total_employees = 0
-    if not employees.empty and nat_cols:
-        _emp = employees.copy()
-        _emp["_total"] = _emp[nat_cols].sum(axis=1)
-        total_employees = int(_emp["_total"].max())
+    if employee_snapshot is not None and nat_cols:
+        total_employees = int(sum(float(employee_snapshot.get(c, 0) or 0) for c in nat_cols))
 
     avg_per_head = 0.0
     if total_employees > 0:
@@ -495,8 +526,8 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
     nat_col_map = {n: n.upper() for n in NATIONALITY_SHEETS}
     for nat in NATIONALITY_SHEETS:
         col = nat_col_map[nat]
-        if not employees.empty and col in employees.columns:
-            nat_emp[nat] = int(employees[col].sum())
+        if employee_snapshot is not None and col in employees.columns:
+            nat_emp[nat] = int(float(employee_snapshot.get(col, 0) or 0))
         else:
             nat_emp[nat] = 0
 
@@ -581,6 +612,7 @@ def get_comparison_data(
 ) -> list:
     """Return comparison table data per nationality."""
     employees = get_employees(period_from=period_from, period_to=period_to)
+    employee_snapshot = _employee_snapshot_row(employees, period_from=period_from, period_to=period_to)
     rows = []
 
     nat_col_map = {
@@ -598,8 +630,8 @@ def get_comparison_data(
 
         emp_col = nat_col_map.get(nat, nat.upper())
         total_emp = 0
-        if not employees.empty and emp_col in employees.columns:
-            total_emp = int(employees[emp_col].sum())
+        if employee_snapshot is not None and emp_col in employees.columns:
+            total_emp = int(float(employee_snapshot.get(emp_col, 0) or 0))
 
         per_head = total_exp / total_emp if total_emp > 0 else 0.0
 
@@ -732,6 +764,7 @@ def get_item_comparison(nationality: str | None = None, period_from: str | None 
     """
     targets = [nationality] if nationality else NATIONALITY_SHEETS
     employees = get_employees(period_from=period_from, period_to=period_to)
+    employee_snapshot = _employee_snapshot_row(employees, period_from=period_from, period_to=period_to)
 
     nat_col_map = {
         "Bangladeshi": "BANGLADESHI",
@@ -744,8 +777,8 @@ def get_item_comparison(nationality: str | None = None, period_from: str | None 
     nat_emp: dict = {}
     for nat in targets:
         emp_col = nat_col_map.get(nat, nat.upper())
-        if not employees.empty and emp_col in employees.columns:
-            nat_emp[nat] = int(employees[emp_col].sum())
+        if employee_snapshot is not None and emp_col in employees.columns:
+            nat_emp[nat] = int(float(employee_snapshot.get(emp_col, 0) or 0))
         else:
             nat_emp[nat] = 0
 
