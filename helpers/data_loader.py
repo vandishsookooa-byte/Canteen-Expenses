@@ -454,6 +454,16 @@ def get_expense_periods() -> list:
     return sorted(valid, key=sort_key)
 
 
+def get_expense_years() -> list:
+    """Return sorted list of years present in expense periods."""
+    years = set()
+    for period in get_expense_periods():
+        start, _ = parse_period_date(str(period))
+        if start is not None:
+            years.add(int(start.year))
+    return sorted(years)
+
+
 def format_rs(amount) -> str:
     """Format as Mauritian Rupee with standard Western grouping: Rs 1,000,000"""
     try:
@@ -543,9 +553,24 @@ def get_kpi_data(period_from: str | None = None, period_to: str | None = None) -
     }
 
 
-def get_trend_data(nationality: str | None = None, period_from: str | None = None, period_to: str | None = None) -> dict:
+def get_trend_data(
+    nationality: str | None = None,
+    period_from: str | None = None,
+    period_to: str | None = None,
+    year: str | int | None = None,
+) -> dict:
     """Return trend chart data grouped by period."""
     expenses = get_all_expenses(nationality=nationality, period_from=period_from, period_to=period_to)
+    if year not in (None, "") and not expenses.empty:
+        try:
+            year_int = int(year)
+        except (TypeError, ValueError):
+            year_int = None
+        if year_int is not None:
+            expenses = expenses.copy()
+            expenses["_start"] = expenses["PERIOD"].apply(lambda p: parse_period_date(str(p))[0])
+            expenses = expenses[expenses["_start"].apply(lambda d: bool(d) and d.year == year_int)]
+            expenses = expenses.drop(columns=["_start"], errors="ignore")
     if expenses.empty:
         return {"labels": [], "datasets": []}
 
@@ -602,6 +627,104 @@ def get_trend_data(nationality: str | None = None, period_from: str | None = Non
         "monthly_labels": list(monthly.keys()),
         "monthly_values": list(monthly.values()),
         "nat_datasets": nat_datasets,
+    }
+
+
+def get_item_monthly_trend_data(
+    year: str | int | None = None,
+    nationality: str | None = None,
+    period_from: str | None = None,
+    period_to: str | None = None,
+) -> dict:
+    """Return month-by-month item value percentage changes for the selected year."""
+    years = get_expense_years()
+    selected_year = None
+    if year not in (None, ""):
+        try:
+            selected_year = int(year)
+        except (TypeError, ValueError):
+            selected_year = None
+    if selected_year is None and years:
+        selected_year = years[-1]
+
+    expenses = get_all_expenses(nationality=nationality, period_from=period_from, period_to=period_to)
+    months = [datetime(2000, m, 1).strftime("%b") for m in range(1, 13)]
+    if expenses.empty:
+        return {"year": selected_year, "years": years, "months": months, "items": []}
+
+    temp = expenses.copy()
+    temp["_start"] = temp["PERIOD"].apply(lambda p: parse_period_date(str(p))[0])
+    temp = temp[temp["_start"].notna()]
+    if selected_year is not None:
+        temp = temp[temp["_start"].apply(lambda d: d.year == selected_year)]
+    if temp.empty:
+        return {"year": selected_year, "years": years, "months": months, "items": []}
+
+    temp["ITEMS"] = temp["ITEMS"].astype(str).str.strip()
+    temp = temp[temp["ITEMS"] != ""]
+    if temp.empty:
+        return {"year": selected_year, "years": years, "months": months, "items": []}
+
+    temp["_item_key"] = temp["ITEMS"].str.upper()
+    temp["_month"] = temp["_start"].apply(lambda d: d.month)
+
+    display_names = (
+        temp.groupby("_item_key")["ITEMS"]
+        .agg(lambda values: next((str(v).strip() for v in values if str(v).strip()), ""))
+        .to_dict()
+    )
+    month_totals = (
+        temp.groupby(["_item_key", "_month"])["TOTAL"]
+        .sum()
+        .to_dict()
+    )
+
+    items = []
+    for item_key in sorted(display_names.keys(), key=lambda key: display_names.get(key, key).lower()):
+        item_name = display_names.get(item_key, item_key.title())
+        prev_value = None
+        month_cells = []
+        has_value = False
+
+        for month_num in range(1, 13):
+            current_value = float(month_totals.get((item_key, month_num), 0.0))
+            has_value = has_value or current_value > 0
+
+            pct_change = None
+            direction = "neutral"
+            if prev_value is not None:
+                if prev_value == 0:
+                    if current_value > 0:
+                        pct_change = 100.0
+                        direction = "up"
+                    else:
+                        pct_change = 0.0
+                else:
+                    pct_change = ((current_value - prev_value) / prev_value) * 100.0
+                    if pct_change > 0:
+                        direction = "up"
+                    elif pct_change < 0:
+                        direction = "down"
+                    else:
+                        direction = "flat"
+
+            month_cells.append({
+                "month": datetime(2000, month_num, 1).strftime("%b"),
+                "value": current_value,
+                "value_fmt": format_rs(current_value),
+                "pct_change": round(pct_change, 2) if pct_change is not None else None,
+                "direction": direction,
+            })
+            prev_value = current_value
+
+        if has_value:
+            items.append({"item": item_name, "months": month_cells})
+
+    return {
+        "year": selected_year,
+        "years": years,
+        "months": months,
+        "items": items,
     }
 
 

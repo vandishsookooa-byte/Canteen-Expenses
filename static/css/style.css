@@ -355,6 +355,44 @@ html, body {
 .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; }
 .total-cell { color: var(--highlight); font-weight: 600; }
 
+.trend-change-table th,
+.trend-change-table td { text-align: center; }
+.trend-change-table th:first-child,
+.trend-change-table td:first-child { text-align: left; }
+.trend-item-cell { white-space: nowrap; font-weight: 600; }
+.trend-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 74px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.trend-pill--up {
+  background: #ef233c22;
+  border: 1px solid #ef233c55;
+  color: var(--danger);
+}
+.trend-pill--down {
+  background: #06d6a022;
+  border: 1px solid #06d6a055;
+  color: var(--success);
+}
+.trend-pill--flat {
+  background: #3a86ff22;
+  border: 1px solid #3a86ff55;
+  color: var(--highlight);
+}
+.trend-pill--empty {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+.trend-arrow { font-size: 11px; line-height: 1; }
+
 /* DataTables overrides */
 .dataTables_wrapper .dataTables_filter input,
 .dataTables_wrapper .dataTables_length select {

@@ -7,11 +7,12 @@ from flask import Flask, render_template, jsonify, request, send_file, Response
 from helpers.data_loader import (
     get_periods,
     get_expense_periods,
+    get_expense_years,
     get_kpi_data,
     get_trend_data,
+    get_item_monthly_trend_data,
     get_comparison_data,
     get_employees,
-    get_all_expenses,
     get_report_perhead,
     get_report_detailed,
     get_report_summary,
@@ -103,7 +104,9 @@ def employees():
 def trends():
     periods = get_periods()
     nationalities = get_nationality_sheets() or NATIONALITY_SHEETS
-    return render_template("trends.html", periods=periods, nationalities=nationalities)
+    years = get_expense_years()
+    latest_year = years[-1] if years else ""
+    return render_template("trends.html", periods=periods, nationalities=nationalities, years=years, latest_year=latest_year)
 
 
 @app.route("/comparison")
@@ -220,9 +223,31 @@ def api_chart_expenditure():
 def api_chart_trend():
     try:
         period_from, period_to, nationality = _get_filter_args()
-        return jsonify(get_trend_data(nationality=nationality, period_from=period_from, period_to=period_to))
+        year = request.args.get("year") or None
+        return jsonify(get_trend_data(
+            nationality=nationality,
+            period_from=period_from,
+            period_to=period_to,
+            year=year,
+        ))
     except Exception as exc:
         logger.error("api_chart_trend error: %s", exc)
+        return jsonify({"error": "An internal error occurred"})
+
+
+@app.route("/api/trends/items")
+def api_trend_items():
+    try:
+        period_from, period_to, nationality = _get_filter_args()
+        year = request.args.get("year") or None
+        return jsonify(get_item_monthly_trend_data(
+            year=year,
+            nationality=nationality,
+            period_from=period_from,
+            period_to=period_to,
+        ))
+    except Exception as exc:
+        logger.error("api_trend_items error: %s", exc)
         return jsonify({"error": "An internal error occurred"})
 
 
