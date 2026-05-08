@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Period selector -->
+<div class="filter-bar card">
+  <label>From Period:</label>
+  <select id="periodFrom" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="periodTo" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-primary" onclick="loadDashboard()">Apply</button>
+  <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid" id="kpiGrid">
+  <div class="kpi-card loading">
+    <div class="kpi-icon">👥</div>
+    <div class="kpi-value" id="kpiEmployees">—</div>
+    <div class="kpi-label">Total Employees</div>
+  </div>
+  <div class="kpi-card loading">
+    <div class="kpi-icon">💰</div>
+    <div class="kpi-value" id="kpiExpenditure">—</div>
+    <div class="kpi-label">Total Expenditure</div>
+  </div>
+  <div class="kpi-card loading">
+    <div class="kpi-icon">📊</div>
+    <div class="kpi-value" id="kpiAvgHead">—</div>
+    <div class="kpi-label">Avg Per Head</div>
+  </div>
+  <div class="kpi-card loading">
+    <div class="kpi-icon">🏆</div>
+    <div class="kpi-value" id="kpiTopNat">—</div>
+    <div class="kpi-label">Top Nationality (Cost)</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+  <div class="card chart-card">
+    <div class="card-header">Employee Distribution by Nationality</div>
+    <div class="chart-container">
+      <canvas id="donutChart"></canvas>
+    </div>
+  </div>
+  <div class="card chart-card">
+    <div class="card-header">Expenditure by Nationality (Rs)</div>
+    <div class="chart-container">
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let donutChart = null;
+let barChart = null;
+
+const chartDefaults = {
+  plugins: { legend: { labels: { color: '#c9d6df' } } },
+  scales: {}
+};
+
+function getFilters() {
+  return {
+    from: document.getElementById('periodFrom').value,
+    to: document.getElementById('periodTo').value,
+  };
+}
+
+// Tracks the latest expense period; populated dynamically from the API.
+let _latestPeriod = "{{ latest_period }}";
+
+function _rebuildPeriodSelects(periods, latest) {
+  const opts = '<option value="">All</option>' +
+    periods.map(p => `<option value="${p}"${p === latest ? ' selected' : ''}>${p}</option>`).join('');
+  document.getElementById('periodFrom').innerHTML = opts;
+  document.getElementById('periodTo').innerHTML = opts;
+  _latestPeriod = latest || _latestPeriod;
+}
+
+async function refreshPeriodSelects() {
+  try {
+    const res = await fetchFresh('/api/expense_periods');
+    const data = await res.json();
+    _rebuildPeriodSelects(data.periods || [], data.latest || '');
+  } catch (e) {
+    // keep server-rendered fallback
+    console.error('Period refresh failed:', e);
+  }
+}
+
+function resetFilters() {
+  document.getElementById('periodFrom').value = _latestPeriod;
+  document.getElementById('periodTo').value = _latestPeriod;
+  loadDashboard();
+}
+
+function buildQuery(obj) {
+  return Object.entries(obj).filter(([,v]) => v).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+}
+
+function fetchFresh(url) {
+  return fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+}
+
+async function loadKPI(filters) {
+  const res = await fetchFresh('/api/kpi?' + buildQuery(filters));
+  const d = await res.json();
+  document.getElementById('kpiEmployees').textContent = d.total_employees ?? '—';
+  document.getElementById('kpiExpenditure').textContent = d.total_expenditure_fmt ?? '—';
+  document.getElementById('kpiAvgHead').textContent = d.avg_per_head_fmt ?? '—';
+  document.getElementById('kpiTopNat').textContent = d.top_nationality || '—';
+  document.querySelectorAll('.kpi-card').forEach(c => c.classList.remove('loading'));
+}
+
+async function loadDonut(filters) {
+  const res = await fetchFresh('/api/charts/nationality?' + buildQuery(filters));
+  const d = await res.json();
+  if (donutChart) donutChart.destroy();
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: d,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#c9d6df', padding: 16 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw} employees`
+          }
+        }
+      }
+    }
+  });
+}
+
+async function loadBar(filters) {
+  const res = await fetchFresh('/api/charts/expenditure?' + buildQuery(filters));
+  const d = await res.json();
+  if (barChart) barChart.destroy();
+  const ctx = document.getElementById('barChart').getContext('2d');
+  barChart = new Chart(ctx, {
+    type: 'bar',
+    data: d,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` Rs ${ctx.raw.toLocaleString('en-US')}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8899aa' }, grid: { color: '#1e3a5f55' } },
+        y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-US') }, grid: { color: '#1e3a5f55' } }
+      }
+    }
+  });
+}
+
+async function loadDashboard() {
+  const filters = getFilters();
+  await Promise.all([loadKPI(filters), loadDonut(filters), loadBar(filters)]);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await refreshPeriodSelects();
+  loadDashboard();
+});
+</script>
+{% endblock %}

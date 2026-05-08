@@ -16,6 +16,9 @@ set EXCEL_PATH=C:\Users\transport\Desktop\Canteen Expenses\Canteen.xlsx
 
 # Linux / macOS
 export EXCEL_PATH=/path/to/Canteen.xlsx
+
+# Optional: reduce/disable cache staleness window (seconds, default 5)
+export CACHE_TTL_SECONDS=5
 ```
 
 3. Run the app:

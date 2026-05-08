@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Comparison{% endblock %}
+{% block page_title %}Nationality Comparison{% endblock %}
+
+{% block content %}
+<div class="filter-bar card">
+  <label>From Period:</label>
+  <select id="periodFrom" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="periodTo" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}" {% if p == latest_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <label>Nationality:</label>
+  <select id="natFilter" class="form-select">
+    <option value="">All Nationalities</option>
+    {% for n in nationalities %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-primary" onclick="loadAll()">Apply</button>
+  <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+</div>
+
+<!-- ── Summary bar chart ── -->
+<div class="card chart-card chart-card--wide" style="margin-bottom:1.5rem;">
+  <div class="card-header">Total Expenditure by Nationality (Rs)</div>
+  <div class="chart-container">
+    <canvas id="comparisonBar"></canvas>
+  </div>
+</div>
+
+<!-- ── Detailed comparison table ── -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header">Detailed Comparison</div>
+  <div class="table-responsive">
+    <table id="compTable" class="data-table">
+      <thead>
+        <tr>
+          <th>Nationality</th>
+          <th style="text-align:right">Total Employees</th>
+          <th style="text-align:right">Total Expenditure (Rs)</th>
+          <th style="text-align:right">Per Head Avg (Rs)</th>
+          <th style="text-align:right">Per Day Avg (Rs)</th>
+        </tr>
+      </thead>
+      <tbody id="compTableBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Item-by-item consumption comparison ── -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header">Item Consumption by Nationality</div>
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">
+    Monitor each item consumed across nationalities — quantities, cost and per-head spend.
+  </p>
+  <div class="table-responsive">
+    <table id="itemTable" class="data-table">
+      <thead id="itemTableHead"></thead>
+      <tbody id="itemTableBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Per-head unit consumption table ── -->
+<div class="card">
+  <div class="card-header">Unit Consumption Per Head</div>
+  <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">
+    Quantity consumed per employee by item and nationality — no cost, units only.
+  </p>
+  <div class="table-responsive">
+    <table id="unitPerHeadTable" class="data-table">
+      <thead id="unitPerHeadHead"></thead>
+      <tbody id="unitPerHeadBody">
+        <tr><td colspan="5" class="text-center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let compChart = null;
+let compDT = null;
+let itemDT  = null;
+let unitDT  = null;
+let latestExpensePeriod = "{{ latest_period }}";
+
+const NAT_COLORS = ['#3a86ff', '#06d6a0', '#ffd166', '#ef233c'];
+
+function resetFilters() {
+  document.getElementById('periodFrom').value = latestExpensePeriod || '';
+  document.getElementById('periodTo').value = latestExpensePeriod || '';
+  document.getElementById('natFilter').value = '';
+  loadAll();
+}
+
+function fetchFresh(url) {
+  return fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+}
+
+function buildQuery() {
+  const from = document.getElementById('periodFrom').value;
+  const to   = document.getElementById('periodTo').value;
+  const nat  = document.getElementById('natFilter').value;
+  const parts = [];
+  if (from) parts.push('from=' + encodeURIComponent(from));
+  if (to)   parts.push('to='   + encodeURIComponent(to));
+  if (nat)  parts.push('nationality=' + encodeURIComponent(nat));
+  return parts.join('&');
+}
+
+/* ── Summary chart + table ── */
+async function loadComparison() {
+  const res  = await fetchFresh('/api/comparison?' + buildQuery());
+  const rows = await res.json();
+
+  if (compChart) compChart.destroy();
+  const ctx = document.getElementById('comparisonBar').getContext('2d');
+  compChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.nationality),
+      datasets: [{
+        label: 'Total Expenditure (Rs)',
+        data: rows.map(r => r.total_expenditure),
+        backgroundColor: NAT_COLORS,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` Rs ${ctx.raw.toLocaleString('en-US')}` } }
+      },
+      scales: {
+        x: { ticks: { color: '#8899aa' }, grid: { color: '#1e3a5f55' } },
+        y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-US') }, grid: { color: '#1e3a5f55' } }
+      }
+    }
+  });
+
+  if (compDT) { compDT.destroy(); compDT = null; }
+  const tbody = document.getElementById('compTableBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="nat-badge nat-${r.nationality.toLowerCase()}">${r.nationality}</span></td>
+      <td class="num-cell">${r.total_employees.toLocaleString('en-US')}</td>
+      <td class="num-cell">${r.total_expenditure_fmt}</td>
+      <td class="num-cell">${r.per_head_avg_fmt}</td>
+      <td class="num-cell">${r.per_day_avg_fmt}</td>
+    </tr>
+  `).join('');
+
+  compDT = $('#compTable').DataTable({ order: [], paging: false, searching: false, info: false });
+}
+
+/* ── Item comparison table ── */
+async function loadItemComparison() {
+  const res  = await fetchFresh('/api/items/comparison?' + buildQuery());
+  const d    = await res.json();
+
+  if (d.error || !d.items) {
+    document.getElementById('itemTableBody').innerHTML =
+      '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    renderUnitPerHead(null);
+    return;
+  }
+
+  const nats = d.nationalities || [];
+
+  // Build header: Item | [Nat: Qty / Total / Per Head] ... | Grand Total
+  const thead = document.getElementById('itemTableHead');
+  let headerRow = '<tr><th rowspan="2" style="vertical-align:middle">Item</th>';
+  nats.forEach((nat, i) => {
+    const color = NAT_COLORS[i % NAT_COLORS.length];
+    headerRow += `<th colspan="3" style="text-align:center;border-bottom:2px solid ${color}">${nat}</th>`;
+  });
+  headerRow += '<th rowspan="2" style="vertical-align:middle;text-align:right">Grand Total</th></tr>';
+
+  let subRow = '<tr>';
+  nats.forEach(() => {
+    subRow += '<th style="text-align:right">Qty</th><th style="text-align:right">Total (Rs)</th><th style="text-align:right">Per Head</th>';
+  });
+  subRow += '</tr>';
+  thead.innerHTML = headerRow + subRow;
+
+  // Build body
+  if (itemDT) { itemDT.destroy(); itemDT = null; }
+  const tbody = document.getElementById('itemTableBody');
+
+  if (!d.items.length) {
+    const cols = nats.length * 3 + 2;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center empty-state">No items found</td></tr>`;
+    renderUnitPerHead(null);
+    return;
+  }
+
+  tbody.innerHTML = d.items.map(row => {
+    let cells = `<td style="white-space:nowrap;font-weight:600">${row.item}</td>`;
+    nats.forEach(nat => {
+      const nd = row.by_nationality[nat];
+      if (nd) {
+        cells += `<td class="num-cell">${nd.qty.toLocaleString('en-US')}</td>`;
+        cells += `<td class="num-cell">${nd.total_fmt}</td>`;
+        cells += `<td class="num-cell">${nd.per_head_fmt}</td>`;
+      } else {
+        cells += '<td class="num-cell" style="color:var(--text-muted)">—</td><td class="num-cell" style="color:var(--text-muted)">—</td><td class="num-cell" style="color:var(--text-muted)">—</td>';
+      }
+    });
+    cells += `<td class="num-cell total-cell">${row.grand_total_fmt}</td>`;
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const colCount = nats.length * 3 + 2;
+  itemDT = $('#itemTable').DataTable({
+    order: [[colCount - 1, 'desc']],
+    pageLength: 25,
+    language: { emptyTable: 'No items found' }
+  });
+
+  // Pass data to the per-head unit table
+  renderUnitPerHead(d);
+}
+
+/* ── Per-head unit consumption table ── */
+function renderUnitPerHead(d) {
+  if (unitDT) { unitDT.destroy(); unitDT = null; }
+  const thead = document.getElementById('unitPerHeadHead');
+  const tbody = document.getElementById('unitPerHeadBody');
+
+  if (!d || !d.items || !d.items.length) {
+    thead.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state">No data available</td></tr>';
+    return;
+  }
+
+  const nats = d.nationalities || [];
+  const natEmp = d.nat_employees || {};
+
+  // Header: Item | Unit | [Nat: qty/head] ...
+  let hRow = '<tr><th style="vertical-align:middle">Item</th><th style="text-align:center;vertical-align:middle">Unit</th>';
+  nats.forEach((nat, i) => {
+    const color = NAT_COLORS[i % NAT_COLORS.length];
+    hRow += `<th style="text-align:right;border-bottom:2px solid ${color}">${nat}<br><small style="font-weight:400;opacity:.7">${(natEmp[nat] || 0).toLocaleString('en-US')} employees</small></th>`;
+  });
+  hRow += '</tr>';
+  thead.innerHTML = hRow;
+
+  // Body rows
+  tbody.innerHTML = d.items.map(row => {
+    const unit = row.unit || '';
+    let cells = `<td style="white-space:nowrap;font-weight:600">${row.item}</td>`;
+    cells += `<td style="text-align:center;color:var(--text-secondary);font-size:12px">${unit || '—'}</td>`;
+    nats.forEach(nat => {
+      const nd = row.by_nationality[nat];
+      if (nd && nd.qty_per_head != null && nd.qty_per_head > 0) {
+        const val = nd.qty_per_head % 1 === 0
+          ? nd.qty_per_head.toLocaleString('en-US')
+          : nd.qty_per_head.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+        cells += `<td class="num-cell">${val}</td>`;
+      } else {
+        cells += `<td class="num-cell" style="color:var(--text-muted)">—</td>`;
+      }
+    });
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  unitDT = $('#unitPerHeadTable').DataTable({
+    order: [],
+    pageLength: 25,
+    language: { emptyTable: 'No data found' }
+  });
+}
+
+async function loadAll() {
+  await Promise.all([loadComparison(), loadItemComparison()]);
+}
+
+async function refreshPeriodSelects() {
+  try {
+    const selectedFrom = document.getElementById('periodFrom').value;
+    const selectedTo = document.getElementById('periodTo').value;
+    const res = await fetchFresh('/api/expense_periods');
+    const data = await res.json();
+    const periods = data.periods || [];
+    latestExpensePeriod = data.latest || latestExpensePeriod;
+    const nextFrom = periods.includes(selectedFrom) ? selectedFrom : (latestExpensePeriod || '');
+    const nextTo = periods.includes(selectedTo) ? selectedTo : (latestExpensePeriod || '');
+    const opts = '<option value="">All</option>' +
+      periods.map(p => `<option value="${p}">${p}</option>`).join('');
+    document.getElementById('periodFrom').innerHTML = opts;
+    document.getElementById('periodTo').innerHTML = opts;
+    document.getElementById('periodFrom').value = nextFrom;
+    document.getElementById('periodTo').value = nextTo;
+  } catch (e) { console.error('Period refresh failed:', e); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await refreshPeriodSelects();
+  loadAll();
+});
+</script>
+{% endblock %}

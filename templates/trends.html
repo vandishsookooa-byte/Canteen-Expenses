@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Trend Analysis{% endblock %}
+{% block page_title %}Trend Analysis{% endblock %}
+
+{% block content %}
+<div class="filter-bar card">
+  <label>Nationality:</label>
+  <select id="natFilter" class="form-select">
+    <option value="">All Nationalities</option>
+    {% for n in nationalities %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+  </select>
+  <label>Year:</label>
+  <select id="yearFilter" class="form-select">
+    {% for y in years %}<option value="{{ y }}" {% if y == latest_year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+  </select>
+  <label>From Period:</label>
+  <select id="periodFrom" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <label>To Period:</label>
+  <select id="periodTo" class="form-select">
+    <option value="">All</option>
+    {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-primary" onclick="loadTrends()">Apply</button>
+  <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+</div>
+
+<div class="charts-grid">
+  <div class="card chart-card chart-card--wide">
+    <div class="card-header">Fortnight Expenditure Trend</div>
+    <div class="chart-container chart-container--tall">
+      <canvas id="trendLine"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="charts-grid" style="margin-top:1.5rem;">
+  <div class="card chart-card chart-card--wide">
+    <div class="card-header">Monthly Expenditure</div>
+    <div class="chart-container chart-container--tall">
+      <canvas id="monthlyBar"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="charts-grid" style="margin-top:1.5rem;">
+  <div class="card chart-card chart-card--wide">
+    <div class="card-header">Monthly Item Value Change (%)</div>
+    <div class="table-responsive">
+      <table class="data-table trend-change-table">
+        <thead id="itemTrendHead"></thead>
+        <tbody id="itemTrendBody">
+          <tr><td colspan="13" class="text-center empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let trendChart = null;
+let monthlyChart = null;
+
+function fetchFresh(url) {
+  return fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+}
+
+function resetFilters() {
+  document.getElementById('natFilter').value = '';
+  const yearFilter = document.getElementById('yearFilter');
+  if (yearFilter.options.length) yearFilter.value = yearFilter.options[yearFilter.options.length - 1].value;
+  document.getElementById('periodFrom').value = '';
+  document.getElementById('periodTo').value = '';
+  loadTrends();
+}
+
+function buildQuery() {
+  const nat = document.getElementById('natFilter').value;
+  const year = document.getElementById('yearFilter').value;
+  const from = document.getElementById('periodFrom').value;
+  const to = document.getElementById('periodTo').value;
+  const parts = [];
+  if (nat) parts.push('nationality=' + encodeURIComponent(nat));
+  if (year) parts.push('year=' + encodeURIComponent(year));
+  if (from) parts.push('from=' + encodeURIComponent(from));
+  if (to) parts.push('to=' + encodeURIComponent(to));
+  return parts.join('&');
+}
+
+function axisOpts() {
+  return {
+    x: { ticks: { color: '#8899aa', maxRotation: 45 }, grid: { color: '#1e3a5f55' } },
+    y: { ticks: { color: '#8899aa', callback: v => 'Rs ' + v.toLocaleString('en-US') }, grid: { color: '#1e3a5f55' } }
+  };
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderItemTrendTable(d) {
+  const head = document.getElementById('itemTrendHead');
+  const body = document.getElementById('itemTrendBody');
+  const months = d.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  head.innerHTML = '<tr><th>Item</th>' + months.map(month => `<th>${month}</th>`).join('') + '</tr>';
+
+  if (!d.items || !d.items.length) {
+    body.innerHTML = `<tr><td colspan="${months.length + 1}" class="text-center empty-state">No item trend data available for the selected filters</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = d.items.map(row => {
+    let cells = `<td class="trend-item-cell">${escapeHtml(row.item)}</td>`;
+    (row.months || []).forEach(month => {
+      if (month.direction === 'new') {
+        cells += '<td><span class="trend-pill trend-pill--up"><span class="trend-arrow">▲</span>New</span></td>';
+        return;
+      }
+
+      if (month.pct_change == null) {
+        cells += '<td><span class="trend-pill trend-pill--empty">—</span></td>';
+        return;
+      }
+
+      let cls = 'trend-pill--flat';
+      let arrow = '→';
+      if (month.direction === 'up') {
+        cls = 'trend-pill--up';
+        arrow = '▲';
+      } else if (month.direction === 'down') {
+        cls = 'trend-pill--down';
+        arrow = '▼';
+      }
+      const pct = Math.abs(month.pct_change).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      cells += `<td><span class="trend-pill ${cls}" title="Value: ${escapeHtml(month.value_fmt)}"><span class="trend-arrow">${arrow}</span>${pct}%</span></td>`;
+    });
+    return `<tr>${cells}</tr>`;
+  }).join('');
+}
+
+async function loadTrends() {
+  const query = buildQuery();
+  const [trendRes, itemRes] = await Promise.all([
+    fetchFresh('/api/charts/trend?' + query),
+    fetchFresh('/api/trends/items?' + query),
+  ]);
+  const d = await trendRes.json();
+  const itemTrend = await itemRes.json();
+
+  if (trendChart) trendChart.destroy();
+  if (monthlyChart) monthlyChart.destroy();
+
+  const nat = document.getElementById('natFilter').value;
+
+  // Fortnight trend line
+  const trendCtx = document.getElementById('trendLine').getContext('2d');
+  let trendDatasets;
+  if (!nat && d.nat_datasets && d.nat_datasets.length > 0) {
+    trendDatasets = d.nat_datasets;
+  } else {
+    trendDatasets = [{
+      label: nat || 'All Nationalities',
+      data: d.values || [],
+      borderColor: '#3a86ff',
+      backgroundColor: '#3a86ff33',
+      fill: true,
+      tension: 0.3,
+    }];
+  }
+
+  trendChart = new Chart(trendCtx, {
+    type: 'line',
+    data: { labels: d.labels || [], datasets: trendDatasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#c9d6df' } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: Rs ${ctx.raw.toLocaleString('en-US')}` } }
+      },
+      scales: axisOpts()
+    }
+  });
+
+  // Monthly bar
+  const monthlyCtx = document.getElementById('monthlyBar').getContext('2d');
+  monthlyChart = new Chart(monthlyCtx, {
+    type: 'bar',
+    data: {
+      labels: d.monthly_labels || [],
+      datasets: [{
+        label: 'Monthly Expenditure (Rs)',
+        data: d.monthly_values || [],
+        backgroundColor: '#3a86ffaa',
+        borderColor: '#3a86ff',
+        borderWidth: 1,
+        borderRadius: 6,
+        maxBarThickness: 80,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#c9d6df' } },
+        tooltip: { callbacks: { label: ctx => ` Rs ${ctx.raw.toLocaleString('en-US')}` } }
+      },
+      scales: axisOpts()
+    }
+  });
+
+  renderItemTrendTable(itemTrend);
+}
+
+async function refreshPeriodSelects() {
+  try {
+    const selectedFrom = document.getElementById('periodFrom').value;
+    const selectedTo = document.getElementById('periodTo').value;
+    const res = await fetchFresh('/api/periods');
+    const periods = await res.json();
+    const opts = '<option value="">All</option>' +
+      periods.map(p => `<option value="${p}">${p}</option>`).join('');
+    document.getElementById('periodFrom').innerHTML = opts;
+    document.getElementById('periodTo').innerHTML = opts;
+    if (periods.includes(selectedFrom)) document.getElementById('periodFrom').value = selectedFrom;
+    if (periods.includes(selectedTo)) document.getElementById('periodTo').value = selectedTo;
+  } catch (e) { console.error('Period refresh failed:', e); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await refreshPeriodSelects();
+  loadTrends();
+});
+</script>
+{% endblock %}
