@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Canteen Expenses Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ===================== TOP NAV ===================== -->
+<nav class="topnav">
+  <span class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 3h18v4H3zM3 10h18v11H3z"/>
+      <path d="M8 10v11M16 10v11"/>
+    </svg>
+    Canteen Expenses
+  </span>
+  <span class="spacer"></span>
+  {% if periods %}
+  <label for="period-select">Period:</label>
+  <select id="period-select" onchange="changePeriod(this.value)">
+    {% for p in periods %}
+    <option value="{{ p }}" {% if p == selected_period %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+</nav>
+
+<!-- ===================== PAGE ===================== -->
+<main class="page">
+
+  {% if not has_excel %}
+  <!-- No Excel notice -->
+  <div class="notice">
+    <h2>📊 No Data File Found</h2>
+    <p>
+      Place <code>Canteen.xlsx</code> in the project root, or set the environment variable:<br/>
+      <code>EXCEL_PATH=/path/to/Canteen.xlsx</code>
+    </p>
+    <p style="margin-top:.75rem">
+      Expected sheets: <code>Bangladeshi</code>, <code>Indian</code>, <code>Malagasy</code>,
+      <code>Srilankan</code>, <code>EMPLOYEES</code>
+    </p>
+  </div>
+
+  {% elif not dashboard %}
+  <div class="notice">
+    <h2>No periods found in the data file.</h2>
+    <p>Make sure your Excel sheets contain a <code>PERIOD</code> column.</p>
+  </div>
+
+  {% else %}
+
+  <!-- ===== SUMMARY CARDS ===== -->
+  <div class="section-title">Overview — {{ selected_period }}</div>
+  <div class="cards-grid">
+    <div class="card card-accent">
+      <div class="card-label">Grand Total</div>
+      <div class="card-value">{{ dashboard.grand_total | rs }}</div>
+      <div class="card-sub">All nationalities</div>
+    </div>
+    <div class="card card-success">
+      <div class="card-label">Total Employees</div>
+      <div class="card-value">{{ dashboard.total_employees }}</div>
+      <div class="card-sub">Across all groups</div>
+    </div>
+    <div class="card card-warning">
+      <div class="card-label">Cost / Head</div>
+      <div class="card-value">{{ dashboard.overall_per_head | rs }}</div>
+      <div class="card-sub">Overall average</div>
+    </div>
+    {% for nd in dashboard.nat_data %}
+    <div class="card card-nat" style="border-top-color: {{ nd.color }}">
+      <div class="card-label">{{ nd.name }}</div>
+      <div class="card-value" style="font-size:1.15rem">{{ nd.total | rs }}</div>
+      <div class="card-sub">{{ nd.employees }} emp · {{ nd.per_head | rs }}/head</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ===== CHARTS ===== -->
+  <div class="section-title">Expense Breakdown</div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>Expense by Nationality</h3>
+      <div class="chart-wrap">
+        <canvas id="barChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Cost per Head by Nationality</h3>
+      <div class="chart-wrap">
+        <canvas id="phChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {% if trend_json != '[]' %}
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>Expense Trend</h3>
+      <div class="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Per-Head Cost Trend</h3>
+      <div class="chart-wrap">
+        <canvas id="phTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ===== NATIONALITY SUMMARY TABLE ===== -->
+  <div class="section-title">Nationality Summary</div>
+  <div class="table-card summary-table">
+    <div class="table-scroll">
+      <table>
+        <colgroup>
+          <col class="col-nat"/>
+          <col class="col-emp"/>
+          <col class="col-tot"/>
+          <col class="col-ph"/>
+          <col class="col-pct"/>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Nationality</th>
+            <th class="right">Employees</th>
+            <th class="right">Total Expense</th>
+            <th class="right">Cost / Head</th>
+            <th>% of Grand Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set gt = dashboard.grand_total %}
+          {% for nd in dashboard.nat_data %}
+          {% set pct = ((nd.total / gt * 100) | round(1)) if gt > 0 else 0 %}
+          <tr>
+            <td>
+              <span class="nat-badge" style="color:{{ nd.color }}; border-color:{{ nd.color }}">
+                {{ nd.name }}
+              </span>
+            </td>
+            <td class="right mono">{{ nd.employees }}</td>
+            <td class="right mono">{{ nd.total | rs }}</td>
+            <td class="right mono">{{ nd.per_head | rs }}</td>
+            <td>
+              <div class="pct-bar">
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:{{ pct }}%; background:{{ nd.color }}"></div>
+                </div>
+                <span class="pct-label">{{ pct }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== ITEM TABLES PER NATIONALITY ===== -->
+  <div class="section-title">Item Breakdown</div>
+  {% for nd in dashboard.nat_data %}
+  {% if nd.item_list %}
+  <div class="table-card">
+    <div class="table-card-header">
+      <h3>{{ nd.name }}</h3>
+      <span class="nat-badge" style="color:{{ nd.color }}; border-color:{{ nd.color }}">
+        {{ nd.total | rs }}
+      </span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <colgroup>
+          <col class="col-item"/>
+          <col class="col-qty"/>
+          <col class="col-unit"/>
+          <col class="col-uprice"/>
+          <col class="col-total"/>
+          <col class="col-head"/>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="right">Qty</th>
+            <th>Unit</th>
+            <th class="right">Unit Price</th>
+            <th class="right">Total</th>
+            <th class="right">Cost/Head</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in nd.item_list %}
+          <tr>
+            <td>{{ item.get('items', '—') }}</td>
+            <td class="right mono">{{ item.get('qty', 0) }}</td>
+            <td>{{ item.get('unit', '—') }}</td>
+            <td class="right mono">{{ item.get('unit_price', 0) | rs }}</td>
+            <td class="right mono">{{ item.get('total', 0) | rs }}</td>
+            <td class="right mono">
+              {% if nd.employees > 0 %}
+                {{ (item.get('total', 0) / nd.employees) | round(2) | rs }}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <!-- ===== SMART ANALYTICS ===== -->
+  <div class="section-title">Smart Analytics — {{ selected_period }}</div>
+  <div class="analytics-grid">
+
+    <!-- Per-Head Cost by Nationality (bar visual) -->
+    <div class="analytics-card">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        Cost Per Head (by Nationality)
+      </h3>
+      {% set max_ph = namespace(val=1) %}
+      {% for nd in dashboard.nat_data %}
+        {% if nd.per_head > max_ph.val %}{% set max_ph.val = nd.per_head %}{% endif %}
+      {% endfor %}
+      {% for nd in dashboard.nat_data %}
+      {% set pct = ((nd.per_head / max_ph.val * 100) | round(1)) if max_ph.val > 0 else 0 %}
+      <div class="ph-bar-row">
+        <span class="ph-nat" style="color:{{ nd.color }}">{{ nd.name }}</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{ pct }}%; background:{{ nd.color }}"></div>
+        </div>
+        <span class="ph-val">{{ nd.per_head | rs }}</span>
+      </div>
+      {% endfor %}
+      <div style="margin-top:.75rem; font-size:.75rem; color:var(--text-muted)">
+        Overall average: <strong style="color:var(--text)">{{ dashboard.overall_per_head | rs }}</strong> / head
+      </div>
+    </div>
+
+    <!-- Top 10 items by total cost this period -->
+    <div class="analytics-card">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Top Items by Expenditure
+      </h3>
+      <div style="overflow-x:auto">
+        <table class="top-items-table">
+          <colgroup>
+            <col class="ti-item"/>
+            <col class="ti-nat"/>
+            <col class="ti-qty"/>
+            <col class="ti-cost"/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Nationality</th>
+              <th class="right">Qty</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set all_items = namespace(rows=[]) %}
+            {% for nd in dashboard.nat_data %}
+              {% for item in nd.item_list %}
+                {% set _ = all_items.rows.append({'item': item.get('items',''), 'nat': nd.name, 'color': nd.color, 'qty': item.get('qty',0), 'total': item.get('total',0)}) %}
+              {% endfor %}
+            {% endfor %}
+            {% for row in all_items.rows | sort(attribute='total', reverse=True) | list %}
+            {% if loop.index <= 10 %}
+            <tr>
+              <td>{{ row.item | default('—') }}</td>
+              <td>
+                <span style="color:{{ row.color }}; font-size:.72rem; font-weight:600">{{ row.nat }}</span>
+              </td>
+              <td class="right mono">{{ row.qty | default(0) }}</td>
+              <td class="right mono">{{ row.total | default(0) | rs }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /analytics-grid -->
+
+  <!-- ===== REPORT SECTION ===== -->
+  <div class="section-title">Report Generator</div>
+  <div class="report-controls">
+    <div class="ctrl-group">
+      <label for="rpt-period">Period</label>
+      <select id="rpt-period">
+        <option value="all">All Periods</option>
+        {% for p in periods %}
+        <option value="{{ p }}" {% if p == selected_period %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label for="rpt-nat">Nationality</label>
+      <select id="rpt-nat">
+        <option value="all">All Nationalities</option>
+        {% for n in nat_sheets %}
+        <option value="{{ n }}">{{ n }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label for="rpt-search">Search Item</label>
+      <input type="text" id="rpt-search" placeholder="Filter by item name…"/>
+    </div>
+    <button class="btn btn-primary" onclick="loadReport()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Generate
+    </button>
+    <button class="btn btn-success" onclick="downloadReport()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download CSV
+    </button>
+  </div>
+
+  <div id="report-status">Loading…</div>
+
+  <div id="report-table-wrap" class="table-card" style="display:none">
+    <div class="table-card-header">
+      <h3>Report Results</h3>
+      <span id="rpt-row-count" class="text-muted" style="font-size:.75rem; margin-left:.5rem"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="report-table">
+        <colgroup>
+          <col class="report-col-period"/>
+          <col class="report-col-nat"/>
+          <col class="report-col-item"/>
+          <col class="report-col-qty"/>
+          <col class="report-col-unit"/>
+          <col class="report-col-uprice"/>
+          <col class="report-col-total"/>
+          <col class="report-col-emp"/>
+          <col class="report-col-qph"/>
+          <col class="report-col-cph"/>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Nationality</th>
+            <th>Item</th>
+            <th class="right">Qty</th>
+            <th>Unit</th>
+            <th class="right">Unit Price</th>
+            <th class="right">Total</th>
+            <th class="right">Employees</th>
+            <th class="right">Qty/Head</th>
+            <th class="right">Cost/Head</th>
+          </tr>
+        </thead>
+        <tbody id="report-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  {% endif %}{# end has_excel #}
+</main>
+
+<footer>Canteen Expenses Dashboard &copy; {{ 2024 }}</footer>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+// ---------- Helpers ----------
+function rsFormat(v) {
+  const n = parseFloat(v) || 0;
+  if (Number.isInteger(n)) {
+    return 'Rs ' + n.toLocaleString('en-US');
+  }
+  return 'Rs ' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function changePeriod(val) {
+  const url = new URL(window.location);
+  url.searchParams.set('period', val);
+  window.location = url.toString();
+}
+
+// ---------- Charts ----------
+{% if dashboard %}
+const natColors = {{ nat_colors | tojson }};
+const natData   = {{ dashboard.nat_data | tojson }};
+const trendData = {{ trend_json }};
+const natSheets = {{ nat_sheets | tojson }};
+
+const chartDefaults = {
+  plugins: {
+    legend: { labels: { color: '#8b949e', font: { size: 11 } } },
+    tooltip: {
+      backgroundColor: '#21262d',
+      titleColor: '#e6edf3',
+      bodyColor: '#8b949e',
+      borderColor: '#30363d',
+      borderWidth: 1,
+    },
+  },
+  scales: {
+    x: {
+      ticks: { color: '#8b949e', font: { size: 10 } },
+      grid: { color: '#21262d' },
+    },
+    y: {
+      ticks: {
+        color: '#8b949e',
+        font: { size: 10 },
+        callback: v => rsFormat(v),
+      },
+      grid: { color: '#21262d' },
+    },
+  },
+};
+
+// Bar – expense by nationality
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: {
+    labels: natData.map(d => d.name),
+    datasets: [{
+      label: 'Total Expense',
+      data: natData.map(d => d.total),
+      backgroundColor: natData.map(d => d.color + 'bb'),
+      borderColor: natData.map(d => d.color),
+      borderWidth: 1,
+      borderRadius: 4,
+    }],
+  },
+  options: {
+    ...chartDefaults,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      ...chartDefaults.plugins,
+      legend: { display: false },
+      tooltip: {
+        ...chartDefaults.plugins.tooltip,
+        callbacks: { label: ctx => ' ' + rsFormat(ctx.raw) },
+      },
+    },
+  },
+});
+
+// Bar – per head by nationality
+new Chart(document.getElementById('phChart'), {
+  type: 'bar',
+  data: {
+    labels: natData.map(d => d.name),
+    datasets: [{
+      label: 'Cost / Head',
+      data: natData.map(d => d.per_head),
+      backgroundColor: natData.map(d => d.color + 'bb'),
+      borderColor: natData.map(d => d.color),
+      borderWidth: 1,
+      borderRadius: 4,
+    }],
+  },
+  options: {
+    ...chartDefaults,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      ...chartDefaults.plugins,
+      legend: { display: false },
+      tooltip: {
+        ...chartDefaults.plugins.tooltip,
+        callbacks: { label: ctx => ' ' + rsFormat(ctx.raw) },
+      },
+    },
+  },
+});
+
+// Trend charts
+if (trendData && trendData.length > 1) {
+  const trendLabels = trendData.map(d => d.period);
+
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: natSheets.map(n => ({
+        label: n,
+        data: trendData.map(d => d[n] || 0),
+        borderColor: natColors[n],
+        backgroundColor: natColors[n] + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3,
+        fill: false,
+      })),
+    },
+    options: {
+      ...chartDefaults,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        ...chartDefaults.plugins,
+        tooltip: {
+          ...chartDefaults.plugins.tooltip,
+          callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + rsFormat(ctx.raw) },
+        },
+      },
+    },
+  });
+
+  new Chart(document.getElementById('phTrendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: natSheets.map(n => ({
+        label: n,
+        data: trendData.map(d => d[n + '_per_head'] || 0),
+        borderColor: natColors[n],
+        backgroundColor: natColors[n] + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3,
+        fill: false,
+      })),
+    },
+    options: {
+      ...chartDefaults,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        ...chartDefaults.plugins,
+        tooltip: {
+          ...chartDefaults.plugins.tooltip,
+          callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + rsFormat(ctx.raw) },
+        },
+      },
+    },
+  });
+}
+{% endif %}
+
+// ---------- Report ----------
+function loadReport() {
+  const period = document.getElementById('rpt-period').value;
+  const nat    = document.getElementById('rpt-nat').value;
+  const search = document.getElementById('rpt-search').value.toLowerCase();
+
+  const status = document.getElementById('report-status');
+  status.style.display = 'block';
+  status.textContent = 'Loading…';
+
+  fetch(`/api/report?period=${encodeURIComponent(period)}&nationality=${encodeURIComponent(nat)}`)
+    .then(r => r.json())
+    .then(data => {
+      status.style.display = 'none';
+      let rows = data.rows || [];
+      if (search) {
+        rows = rows.filter(r => (r.item || '').toLowerCase().includes(search));
+      }
+      renderReportTable(rows);
+    })
+    .catch(() => { status.textContent = 'Error loading report.'; });
+}
+
+function renderReportTable(rows) {
+  const tbody = document.getElementById('report-tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.period}</td>
+      <td>${r.nationality}</td>
+      <td>${r.item || '—'}</td>
+      <td class="right mono">${parseFloat(r.qty || 0).toLocaleString('en-US')}</td>
+      <td>${r.unit || '—'}</td>
+      <td class="right mono">${rsFormat(r.unit_price)}</td>
+      <td class="right mono">${rsFormat(r.total)}</td>
+      <td class="right mono">${r.employees}</td>
+      <td class="right mono">${parseFloat(r.qty_per_head || 0).toFixed(2)}</td>
+      <td class="right mono">${rsFormat(r.cost_per_head)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('rpt-row-count').textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
+  document.getElementById('report-table-wrap').style.display = 'block';
+}
+
+function downloadReport() {
+  const period = document.getElementById('rpt-period').value;
+  const nat    = document.getElementById('rpt-nat').value;
+  window.location = `/api/download?period=${encodeURIComponent(period)}&nationality=${encodeURIComponent(nat)}`;
+}
+
+// Auto-load report for current period on page load
+(function() {
+  {% if dashboard %}
+  // Pre-load report for selected period automatically
+  loadReport();
+  {% endif %}
+})();
+</script>
+
+</body>
+</html>
